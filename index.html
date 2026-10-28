@@ -841,7 +841,8 @@
     status("search", "搜索「" + raw + "」…");
     $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
     $("hotSec").style.display = "none"; $("hotGrid").innerHTML = "";
-    $("shist").innerHTML = ""; $("sugBox").style.display = "none";
+    $("shist").innerHTML = ""; $("sugBox").style.display = "none"; $("sugBox").innerHTML = "";
+    sugGen++; clearTimeout(sugTimer);   // 作废飞行中的联想响应,防止结果页被联想回填
     state.epHint = parseHint(raw);
     var title = raw.replace(/第?\s*\d{1,4}\s*[集期话]/g, "").replace(/^[，,。.\s]+|[，,。.\s]+$/g, "").trim() || raw;
     try {
@@ -919,7 +920,7 @@
   }
   function sugRender(list, kw, pending) {
     var box = $("sugBox");
-    if (!list.length && !pending) { box.style.display = "none"; box.innerHTML = ""; return; }
+    if (!list.length) { sugFallback(kw); return; }
     box.innerHTML = "";
     list.forEach(function (row) {
       var d = document.createElement("div");
@@ -989,11 +990,28 @@
       sugNet(kw, gen);
     }, immediate ? 0 : 200);
   }
-  $("q").addEventListener("input", function () { sugTick(false); });
-  // iOS 选字瞬间 compositionend 先于输入框值更新触发,延迟一拍再读取
-  $("q").addEventListener("compositionend", function () { setTimeout(function () { sugTick(true); }, 0); });
-  // keyup 双保险:选字/删除后必然触发,彻底避免联想停在「正在搜索全网…」
-  $("q").addEventListener("keyup", function () { sugTick(false); });
+  var composing = false;
+  $("q").addEventListener("compositionstart", function () {
+    composing = true;
+    $("sugBox").style.display = "none"; $("sugBox").innerHTML = "";   // 拼音组合期间不显示联想
+  });
+  $("q").addEventListener("input", function () { if (!composing) sugTick(false); });
+  // iOS 选字瞬间 compositionend 先于输入框值更新触发,延迟一拍等值写入后再联想
+  $("q").addEventListener("compositionend", function () {
+    composing = false;
+    setTimeout(function () { sugTick(true); }, 0);
+  });
+  // keyup 双保险:选字/删除后必然触发
+  $("q").addEventListener("keyup", function () { if (!composing) sugTick(false); });
+  // 再次点击输入框(含已聚焦状态):有词立即联想,无词恢复历史与榜单
+  function qRevive() {
+    if (state.view !== "search") return;
+    var kw = ($("q").value || "").trim();
+    if (kw) { sugTick(true); }
+    else if (!$("searchGrid").children.length) { renderSHist(); renderSearchHot(); }
+  }
+  $("q").addEventListener("focus", qRevive);
+  $("q").addEventListener("click", qRevive);
   // iOS 内嵌浏览器(Documents等WKWebView宿主)与旧版PWA会静默吞掉 window.open，
   // 返回空时退到当前页跳转，保证必有反应
   function openExt(u) {
