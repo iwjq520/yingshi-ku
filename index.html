@@ -249,12 +249,11 @@
         <div class="steps">
           <div class="step"><i>1</i><span>下方<b>输入剧名</b>（如：斗破苍穹），点平台按钮直达搜索</span></div>
           <div class="step"><i>2</i><span>在平台<b>点开想看的那一集</b></span></div>
-          <div class="step"><i>3</i><span>分享 → <b>拷贝链接</b> → 回来点「粘贴」即播<br>
+          <div class="step"><i>3</i><span>分享 → <b>拷贝链接</b> → 回来<b>长按输入框粘贴</b>即自动播放<br>
             <small style="color:#5f6570">复制方法：长按浏览器<b style="color:#c9ced6">底部的网址条</b> → 拷贝；或点分享按钮 □↑ → 拷贝链接</small></span></div>
         </div>
         <div class="prow">
-          <input id="purl" type="text" inputmode="text" autocapitalize="off" placeholder="粘贴链接 或 输入剧名找官方源">
-          <button class="paste" id="paste">粘贴</button>
+          <input id="purl" type="text" inputmode="text" autocapitalize="off" placeholder="长按此处粘贴链接，或输入剧名找官方源">
         </div>
         <div class="perr" id="perr"></div>
         <div class="plines" id="plines"></div>
@@ -1048,7 +1047,7 @@
         if (/^https?:\/\//i.test(v)) { tip("输入框里已是链接，点上方线路直接解析"); return; }
         if (!v) { tip("先在上方输入剧名，如：斗破苍穹"); $("purl").focus(); return; }
         openExt(s.url + encodeURIComponent(v));
-        tip("已到" + s.name + "：点开想看的那一集 → 分享拷贝链接 → 回来点「粘贴」");
+        tip("已到" + s.name + "：点开想看的那一集 → 分享拷贝链接 → 回来长按输入框粘贴");
       };
       box.appendChild(sp);
     });
@@ -1478,21 +1477,6 @@
     try { localStorage.setItem("m_purl", u); } catch (e) {}
     return u;
   }
-  $("paste").onclick = function () {
-    if (navigator.clipboard && navigator.clipboard.readText) {
-      navigator.clipboard.readText().then(function (t) {
-        if (t && /^https?:\/\//.test(t.trim())) {
-          $("purl").value = t.trim();
-          var first = $("plines").children[0];
-          if (first && first.onclick) { first.onclick(); }  // 粘贴即播：走臻享线路，校验/提示复用线路按钮
-          else tip("已粘贴");
-        }
-        else tip("剪贴板里没有链接——去平台点开那一集，分享拷贝链接");
-      }).catch(function () { $("purl").focus(); tip("长按输入框粘贴，粘好后自动播放"); });
-    } else {
-      $("purl").focus(); tip("长按输入框粘贴，粘好后自动播放");
-    }
-  };
   try { var pu0 = localStorage.getItem("m_purl"); if (pu0 && !$("purl").value) $("purl").value = pu0; } catch (e) {}
   /* 粘贴/输入合法剧集链接后自动解析(无需再点线路);剧名输入不受影响 */
   var autoTm = null;
@@ -1584,7 +1568,6 @@
   };
 })();
 </script>
-
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
