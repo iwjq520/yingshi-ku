@@ -1,5 +1,5 @@
 /* 影视库 离线缓存外壳 v8:秒开 + 后台更新 + 弱网兜底 + 海报缓存 */
-var CACHE = "yingshiku-v41";
+var CACHE = "yingshiku-v42";
 var IMG_CACHE = "yingshiku-imgs-v1";
 var SHELL = ["./", "./index.html", "./icon-192.png", "./icon-512.png", "./manifest.webmanifest"];
 var NET_TIMEOUT = 8000;
