@@ -1481,6 +1481,7 @@
     if (!/^https?:\/\/\S+\.\S+/i.test(u)) {
       if (strict) $("perr").textContent = "⚠ 输入的是剧名？点下方平台按钮去官方平台搜；或粘贴剧集页链接";
       return null;
+      return null;
     }
     // 只识别网址主体（?之前的 部分），避免链接参数里嵌套的搜索页网址造成误判
     var uBody = u.split("?")[0];
