@@ -1058,7 +1058,7 @@
   }
   document.addEventListener("visibilitychange", function () {
     if (!state.curRow || $("ply").style.display !== "flex") return;
-    if (document.hidden) sessSettle();
+    if (document.hidden) { saveSec(); sessSettle(); }
     else sessStart(String(state.curRow.vod_id));
   });
   function renderPEplist() {
@@ -1077,7 +1077,8 @@
     openExt(u);
     tip("已在浏览器打开");
   };
-  var directMode = false;
+  var directMode = true;   // 默认直连（系统播放器：快进快 + 秒级进度记忆）
+  try { if (localStorage.getItem("m_pmode") === "cloud") directMode = false; } catch (e) {}
   function applyPlayer() {
     var ep = state.eps[state.epIdx];
     if (!ep) return;
@@ -1110,6 +1111,7 @@
     if (state.epIdx < 0) { tip("请先播放某一集"); return; }
     directMode = !directMode;
     this.textContent = directMode ? "云播放" : "直连";
+    try { localStorage.setItem("m_pmode", directMode ? "direct" : "cloud"); } catch (e) {}
     if (directMode) applyPlayer();
     else playEp(state.epIdx);
   };
@@ -1124,7 +1126,17 @@
       if (p && p.ep === state.epIdx + 1) { p.sec = Math.floor(pv.currentTime); setProg(prog); }
     } catch (e) {}
   });
+  function saveSec() {
+    var v = $("pVideo");
+    try {
+      if (directMode && state.curRow && v.currentTime > 1) {
+        var prog = getProg(); var p = prog[String(state.curRow.vod_id)];
+        if (p && p.ep === state.epIdx + 1) { p.sec = Math.floor(v.currentTime); setProg(prog); }
+      }
+    } catch (e) {}
+  }
   $("pClose").onclick = function () {
+    saveSec();
     sessSettle();
     $("ply").style.display = "none";
     $("pFrame").src = "about:blank";
