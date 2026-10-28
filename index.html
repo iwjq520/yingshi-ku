@@ -122,6 +122,7 @@
   #ply .bar button { padding: 7px 13px; font-size: 13px; border-radius: 7px; border: none;
     background: #1e2228; color: #c9ced6; }
   #ply iframe { flex: 1; width: 100%; border: none; background: #000; }
+  #ply video { flex: 1; width: 100%; background: #000; object-fit: contain; }
   #ply .eplist { max-height: 36vh; overflow-y: auto; padding: 10px; background: rgba(12,13,16,.97);
     display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -248,9 +249,11 @@
       <button id="pClose">✕</button>
       <b id="pTitle"></b>
       <button id="pEps">选集</button>
+      <button id="pDirect" title="系统播放器直连源站，快进加载更快">直连</button>
       <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）">网页</button>
     </div>
     <iframe id="pFrame" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
+    <video id="pVideo" playsinline webkit-playsinline controls preload="auto" style="display:none"></video>
     <div class="eplist" id="pEplist" style="display:none"></div>
   </div>
 
@@ -310,12 +313,20 @@
     var el = { home: "st-home", cat: "st-cat", search: "st-search", follow: "st-follow", hist: "st-hist" }[view];
     if (el) $(el).textContent = m || "";
   }
-  function api(u) {
+  var apiCache = {};
+  function api(u, opts) {
+    if (!opts || !opts.fresh) {
+      var c = apiCache[u];
+      if (c && Date.now() - c.t < 90000) return Promise.resolve(c.d);
+    }
     var ctl = new AbortController();
     var tm = setTimeout(function () { ctl.abort(); }, 15000);
     return fetch(u, { signal: ctl.signal }).then(function (r) {
       clearTimeout(tm); return r.json();
-    }, function (e) { clearTimeout(tm); throw e; });
+    }, function (e) { clearTimeout(tm); throw e; }).then(function (d) {
+      apiCache[u] = { d: d, t: Date.now() };
+      return d;
+    });
   }
   function parseHint(s) {
     var m = s.match(/第?\s*(\d{1,4})\s*[集期话]/);
@@ -355,7 +366,7 @@
   function pcard(row, onClick) {
     var d = document.createElement("div");
     d.className = "pcard";
-    d.innerHTML = '<div class="pw"><img loading="lazy" alt=""><span class="rq"></span></div><div class="pn"></div><div class="pr"></div>';
+    d.innerHTML = '<div class="pw"><img loading="lazy" decoding="async" alt=""><span class="rq"></span></div><div class="pn"></div><div class="pr"></div>';
     if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
     d.querySelector(".rq").textContent = row.vod_remarks || "";
     if (!row.vod_remarks) d.querySelector(".rq").style.display = "none";
@@ -443,6 +454,14 @@
       if (hv > 0) pr.textContent += " · 热" + fmtHot(hv);
       grid.appendChild(c);
     });
+    prefetchDetails(homePool);
+  }
+  function prefetchDetails(rows) {
+    rows.slice(0, 6).forEach(function (row, i) {
+      setTimeout(function () {
+        api(API + "?ac=videolist&wd=x&ids=" + row.vod_id).catch(function () {});
+      }, 400 + i * 300);
+    });
   }
 
   /* ---------- 分类（热度排行） ---------- */
@@ -495,6 +514,7 @@
     catPool.forEach(function (row) {
       grid.appendChild(pcard(row, function () { openDetail(row); }));
     });
+    prefetchDetails(catPool);
   }
 
   /* ---------- 搜索（画质探测+⭐推荐+历史） ---------- */
@@ -528,18 +548,23 @@
         var c = pcard(row, function () { openDetail(row); });
         grid.appendChild(c);
       });
+      prefetchDetails(list);
       var jobs = list.slice(0, 8).map(function (row, k) {
-        var e0 = epsOf(row)[0];
-        if (!e0) return Promise.resolve({ row: row, w: 0 });
-        return probeRes(e0.url).then(function (r) {
-          var card = grid.children[k];
-          if (card && r.tag) {
-            var q = card.querySelector(".rq");
-            q.textContent = r.tag; q.style.display = "block";
-            q.className = "rq" + (r.w >= 1080 ? "" : " new");
-          }
-          return { row: row, w: r.w, tag: r.tag };
-        }).catch(function () { return { row: row, w: 0, tag: "" }; });
+        return new Promise(function (res) {
+          setTimeout(function () {
+            var e0 = epsOf(row)[0];
+            if (!e0) { res({ row: row, w: 0, tag: "", idx: k }); return; }
+            probeRes(e0.url).then(function (r) {
+              var card = grid.children[k];
+              if (card && r.tag) {
+                var q = card.querySelector(".rq");
+                q.textContent = r.tag; q.style.display = "block";
+                q.className = "rq" + (r.w >= 1080 ? "" : " new");
+              }
+              res({ row: row, w: r.w, tag: r.tag, idx: k });
+            }).catch(function () { res({ row: row, w: 0, tag: "", idx: k }); });
+          }, k * 300);
+        });
       });
       Promise.all(jobs).then(function (rs) {
         var best = null;
@@ -733,10 +758,11 @@
     }
     state.pcur = PLAYER + encodeURIComponent(ep.url);
     $("ply").style.display = "flex";
-    $("pFrame").src = PLAYER + encodeURIComponent(ep.url);
+    if (!directMode) $("pFrame").src = PLAYER + encodeURIComponent(ep.url);
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || ("第" + (i + 1) + "集"));
     renderPEplist();
     if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
+    applyPlayer();
   }
   function renderPEplist() {
     var box = $("pEplist"); box.innerHTML = "";
@@ -754,9 +780,35 @@
     openExt(u);
     tip("已在浏览器打开");
   };
+  var directMode = false;
+  function applyPlayer() {
+    var ep = state.eps[state.epIdx];
+    if (!ep) return;
+    var v = $("pVideo"), f = $("pFrame");
+    if (directMode) {
+      if (v.dataset.u !== ep.url) {
+        v.dataset.u = ep.url; v.src = ep.url;
+        var p = v.play(); if (p && p.catch) p.catch(function () {});
+      }
+      f.style.display = "none"; v.style.display = "block";
+    } else {
+      try { v.pause(); } catch (e) {}
+      v.style.display = "none"; f.style.display = "block";
+    }
+  }
+  $("pDirect").onclick = function () {
+    if (state.epIdx < 0) { tip("请先播放某一集"); return; }
+    directMode = !directMode;
+    this.textContent = directMode ? "云播放" : "直连";
+    if (directMode) applyPlayer();
+    else playEp(state.epIdx);
+  };
   $("pClose").onclick = function () {
     $("ply").style.display = "none";
     $("pFrame").src = "about:blank";
+    var v = $("pVideo");
+    try { v.pause(); } catch (e) {}
+    v.removeAttribute("src"); v.load();
   };
   $("pEps").onclick = function () {
     if (window.plyMode === "parse") { tip("解析线路自带选集，请在播放器内操作"); return; }
@@ -835,7 +887,7 @@
     status("follow", "检查更新中…");
     box.innerHTML = "";
     var jobs = list.map(function (f) {
-      return api(API + "?ac=videolist&wd=%20&ids=" + f.id).then(function (j) {
+      return api(API + "?ac=videolist&wd=%20&ids=" + f.id, { fresh: true }).then(function (j) {
         var d = j.list && j.list[0];
         var now = d ? epsOf(d).length : (f.eps || 0);
         return { f: f, now: now };
