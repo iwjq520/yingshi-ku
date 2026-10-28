@@ -1444,10 +1444,11 @@
   })();
   var PLAY = [
     { re: /(m\.)?v\.qq\.com\/x\/(cover|page|m\/play)/i, name: "腾讯视频" },
-    { re: /iqiyi\.com\/[vw]_/i, name: "爱奇艺" },
-    { re: /youku\.com\/v_show\/id_/i, name: "优酷" },
-    { re: /mgtv\.com\/b\//i, name: "芒果TV" },
-    { re: /bilibili\.com\/video\//i, name: "B站" }
+    { re: /(m\.)?iqiyi\.com\/[vw]_/i, name: "爱奇艺" },
+    { re: /(m\.)?youku\.com\/(v_show|alipay_video)\/id_/i, name: "优酷" },
+    { re: /(m\.)?mgtv\.com\/b\//i, name: "芒果TV" },
+    { re: /bilibili\.com\/video\//i, name: "B站" },
+    { re: /b23\.tv\//i, name: "B站" }
   ];
   var SEARCHY = [
     { re: /v\.qq\.com\/x\/search\//i, name: "腾讯视频" },
@@ -1457,7 +1458,10 @@
     { re: /search\.bilibili\.com/i, name: "B站" }
   ];
   function getPU(strict) {
-    var u = ($("purl").value || "").trim();
+    var raw = ($("purl").value || "").trim();
+    // 平台分享常为「标题+链接」混合文本：从中抽出链接
+    var mU = raw.match(/https?:\/\/[^\s"'<>「」【】（）()]+/i);
+    var u = mU ? mU[0] : raw;
     if (!/^https?:\/\/\S+\.\S+/i.test(u)) {
       if (strict) $("perr").textContent = "⚠ 输入的是剧名？点下方平台按钮去官方平台搜；或粘贴剧集页链接";
       return null;
