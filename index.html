@@ -1443,26 +1443,26 @@
       box.appendChild(b);
     });
   })();
+  var PLAY = [
+    { re: /(m\.)?v\.qq\.com\/x\/(cover|page|m\/play)/i, name: "腾讯视频" },
+    { re: /iqiyi\.com\/[vw]_/i, name: "爱奇艺" },
+    { re: /youku\.com\/v_show\/id_/i, name: "优酷" },
+    { re: /mgtv\.com\/b\//i, name: "芒果TV" },
+    { re: /bilibili\.com\/video\//i, name: "B站" }
+  ];
+  var SEARCHY = [
+    { re: /v\.qq\.com\/x\/search\//i, name: "腾讯视频" },
+    { re: /(so|search)\.iqiyi\.com|iqiyi\.com\/search/i, name: "爱奇艺" },
+    { re: /(so|search)\.youku\.com/i, name: "优酷" },
+    { re: /mgtv\.com\/(h\/search|s\b)/i, name: "芒果TV" },
+    { re: /search\.bilibili\.com/i, name: "B站" }
+  ];
   function getPU(strict) {
     var u = ($("purl").value || "").trim();
     if (!/^https?:\/\/\S+\.\S+/i.test(u)) {
       if (strict) $("perr").textContent = "⚠ 输入的是剧名？点下方平台按钮去官方平台搜；或粘贴剧集页链接";
       return null;
     }
-    var PLAY = [
-      { re: /v\.qq\.com\/x\/(cover|page)\//i, name: "腾讯视频" },
-      { re: /iqiyi\.com\/[vw]_/i, name: "爱奇艺" },
-      { re: /youku\.com\/v_show\/id_/i, name: "优酷" },
-      { re: /mgtv\.com\/b\//i, name: "芒果TV" },
-      { re: /bilibili\.com\/video\//i, name: "B站" }
-    ];
-    var SEARCHY = [
-      { re: /v\.qq\.com\/x\/search\//i, name: "腾讯视频" },
-      { re: /(so|search)\.iqiyi\.com|iqiyi\.com\/search/i, name: "爱奇艺" },
-      { re: /(so|search)\.youku\.com/i, name: "优酷" },
-      { re: /mgtv\.com\/(h\/search|s\b)/i, name: "芒果TV" },
-      { re: /search\.bilibili\.com/i, name: "B站" }
-    ];
     var i, known = false;
     for (i = 0; i < PLAY.length; i++) if (PLAY[i].re.test(u)) { known = true; break; }
     if (!known) {
@@ -1488,12 +1488,25 @@
           else tip("已粘贴");
         }
         else tip("剪贴板里没有链接——去平台点开那一集，分享拷贝链接");
-      }).catch(function () { $("purl").focus(); tip("请长按输入框选择「粘贴」"); });
+      }).catch(function () { $("purl").focus(); tip("长按输入框粘贴，粘好后自动播放"); });
     } else {
-      $("purl").focus(); tip("请长按输入框选择「粘贴」");
+      $("purl").focus(); tip("长按输入框粘贴，粘好后自动播放");
     }
   };
   try { var pu0 = localStorage.getItem("m_purl"); if (pu0 && !$("purl").value) $("purl").value = pu0; } catch (e) {}
+  /* 粘贴/输入合法剧集链接后自动解析(无需再点线路);剧名输入不受影响 */
+  var autoTm = null;
+  $("purl").addEventListener("input", function () {
+    clearTimeout(autoTm);
+    autoTm = setTimeout(function () {
+      var v = ($("purl").value || "").trim();
+      var hit = PLAY.some(function (p) { return p.re.test(v); });
+      if (hit) {
+        var first = $("plines").children[0];
+        if (first && first.onclick) first.onclick();
+      }
+    }, 600);
+  });
 
   /* ---------- 启动 ---------- */
   /* ---------- 下拉刷新 / 页签刷新 ---------- */
@@ -1571,6 +1584,7 @@
   };
 })();
 </script>
+
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
