@@ -1235,6 +1235,7 @@
     state.pcur = PLAYER + encodeURIComponent(ep.url);
     $("ply").style.display = "flex";
     window.plyMode = "ep";
+    clearTimeout(parseWatch);
     $("pRoutes").style.display = "none";
     if (!directMode) $("pFrame").src = PLAYER + encodeURIComponent(ep.url);
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || ("第" + (i + 1) + "集"));
@@ -1271,8 +1272,14 @@
     });
   }
   $("pWeb").onclick = function () {
-    var u = state.pcur || ($("pFrame").src && $("pFrame").src.indexOf("about:blank") < 0 ? $("pFrame").src : "");
-    if (!u) { tip("请先播放某一集"); return; }
+    var u;
+    if (window.plyMode === "parse") {
+      u = $("pFrame").src;
+      if (!u || u.indexOf("http") !== 0) { tip("请先点线路解析"); return; }
+    } else {
+      u = state.pcur || ($("pFrame").src && $("pFrame").src.indexOf("about:blank") < 0 ? $("pFrame").src : "");
+      if (!u) { tip("请先播放某一集"); return; }
+    }
     openExt(u);
     tip("已在浏览器打开");
   };
@@ -1337,6 +1344,7 @@
   $("pClose").onclick = function () {
     saveSec();
     sessSettle();
+    clearTimeout(parseWatch);
     $("ply").style.display = "none";
     $("pRoutes").style.display = "none";
     $("pFrame").src = "about:blank";
@@ -1442,11 +1450,19 @@
   /* ---------- 解析（我的） ---------- */
   var PSOURCES = [
     { name: "臻享", url: "https://aibox.eu.org/?url=", star: true },
-    { name: "七哥", url: "https://jx.202617.xyz/tv.php?url=" },
+    { name: "麒麟", url: "https://free.maccms.xyz/?url=" },
     { name: "TXNQ", url: "https://bfq.txnp.cn/player?url=" },
-    { name: "冰豆", url: "https://bd.jx.cn/?url=" },
-    { name: "麒麟", url: "https://free.maccms.xyz/?url=" }
+    { name: "七哥", url: "https://jx.202617.xyz/tv.php?url=" },
+    { name: "冰豆", url: "https://bd.jx.cn/?url=" }
   ];
+  var parseWatch = null;
+  function armParseWatch() {
+    clearTimeout(parseWatch);
+    parseWatch = setTimeout(function () {
+      if (window.plyMode !== "parse") return;
+      tip("一直转圈多是这条线路卡了：点顶部线路名换一条，或点「网页」用浏览器播");
+    }, 12000);
+  }
   function openParse(s, u) {
     window.plyParseU = u;
     window.plyMode = "parse";
@@ -1460,6 +1476,7 @@
     $("pTitle").textContent = s.name + " · 官方源播放";
     $("pEplist").innerHTML = ""; $("pEplist").style.display = "none";
     renderPRoutes(s.name);
+    armParseWatch();
     if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
   }
   function renderPRoutes(cur) {
@@ -1467,14 +1484,21 @@
     box.style.display = "flex";
     box.innerHTML = "";
     var h = document.createElement("span");
-    h.className = "ph"; h.textContent = "线路";
+    h.className = "ph"; h.textContent = "线路·卡住换条";
     box.appendChild(h);
     PSOURCES.forEach(function (s) {
       var b = document.createElement("span");
       b.className = "pline" + (s.name === cur ? " on" : "");
-      b.textContent = s.name;
+      b.textContent = s.name + (s.name === cur ? " ↻" : "");
+      b.title = s.name === cur ? "点当前线路=重试" : "";
       b.onclick = function () {
-        if (s.name === cur || !window.plyParseU) return;
+        if (!window.plyParseU) return;
+        if (s.name === cur) {
+          $("pFrame").src = "about:blank";
+          setTimeout(function () { openParse(s, window.plyParseU); }, 60);
+          tip("正在重试「" + s.name + "」…");
+          return;
+        }
         openParse(s, window.plyParseU);
       };
       box.appendChild(b);
