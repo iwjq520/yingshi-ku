@@ -138,6 +138,24 @@
     z-index: 1200; background: #262a32; color: #f2f3f5; border: none;
     border-radius: 8px; padding: 9px 16px; font-size: 13px; display: none; max-width: 86vw;
     box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+
+  .hrow { display: flex; gap: 9px; overflow-x: auto; padding: 2px 2px 10px; scrollbar-width: none; }
+  .hrow::-webkit-scrollbar { display: none; }
+  .hcard { flex-shrink: 0; width: 104px; cursor: pointer; }
+  .hcard .pw { position: relative; width: 100%; height: 0; padding-top: 142.5%; border-radius: 6px; overflow: hidden; background: #1a1d23; }
+  .hcard .pw img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hcard .ht { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9px; padding: 12px 5px 3px;
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,.82)); color: #ff9d45;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hcard .pn { font-size: 12px; color: #e8eaee; margin-top: 6px; height: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .hcard .pr { font-size: 10px; color: #6a7077; margin-top: 2px; height: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .bsec { font-size: 15px; font-weight: 600; color: #f2f3f5; margin: 18px 2px 10px; }
+  .bsec small { font-size: 11px; color: #5f6570; font-weight: 400; margin-left: 8px; }
+  .sback { flex-shrink: 0; width: 42px; min-height: 42px; font-size: 24px; line-height: 1; color: #e8eaee;
+    background: #1e2228; border: none; border-radius: 999px; cursor: pointer; }
+  .dangertool { width: 100%; padding: 11px 14px; font-size: 13px; border-radius: 8px; cursor: pointer;
+    border: 1px solid #4a2530; background: transparent; color: #ff8a8a; }
+  body[data-view="search"] .sbar { display: none; }
 </style>
 </head>
 <body>
@@ -150,9 +168,7 @@
   <main>
     <section class="view on" id="v-home">
       <div class="status" id="st-home"></div>
-      <div class="sec">正在热播 <small>每日更新</small></div>
-      <div class="grid" id="homeGrid"></div>
-      <div id="homeMore"></div>
+      <div id="homeBlocks"></div>
     </section>
 
     <section class="view" id="v-cat">
@@ -164,6 +180,7 @@
 
     <section class="view" id="v-search">
       <div class="row">
+        <button class="sback" id="sBack">‹</button>
         <input id="q" type="search" enterkeyhint="search" placeholder="搜索影视剧名">
         <button class="go" id="go">搜索</button>
       </div>
@@ -173,6 +190,8 @@
       <div class="sec">官方平台 <small>拷剧集页链接，回「我的」一键播放</small></div>
       <div class="chips" id="jumps"></div>
       <div class="grid" id="searchGrid"></div>
+      <div class="sec" id="hotSec" style="display:none">今日热播 <small>全网播放热度 · 国产优先</small></div>
+      <div class="grid" id="hotGrid"></div>
     </section>
 
     <section class="view" id="v-follow">
@@ -204,6 +223,10 @@
         <div class="plines" id="plines"></div>
       </div>
       <div class="mineCard">
+        <div class="mt">设置</div>
+        <button class="dangertool" id="clearData">清除本机数据（追剧 / 收藏 / 观看历史）</button>
+      </div>
+      <div class="mineCard">
         <div class="mt">关于</div>
         <div class="about">
           片库来自公开资源接口 · 画质以片源为准<br>
@@ -217,7 +240,6 @@
   <nav id="tabbar">
     <div class="tb on" data-v="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9h-5.5v-5.5h-5V20H4z"/></svg>首页</div>
     <div class="tb" data-v="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>分类</div>
-    <div class="tb" data-v="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>搜索</div>
     <div class="tb" data-v="follow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 4h10v16l-5-3.8L7 20z"/></svg>追剧</div>
     <div class="tb" data-v="hist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 1.8"/></svg>历史</div>
     <div class="tb" data-v="mine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.8"/><path d="M5 20c.8-4 3.6-5.8 7-5.8s6.2 1.8 7 5.8"/></svg>我的</div>
@@ -265,7 +287,7 @@
   var API = "https://bfzyapi.com/api.php/provide/vod/";
   var PLAYER = "https://wsyzy.vip/m3u8/?url=";
   var state = {
-    view: "home", catId: 31, catPg: 1, homePg: 1, loading: false,
+    view: "home", catId: 31, catPg: 1, homePg: 1, loading: false, cnOnly: false,
     lines: [], lineIdx: 0, eps: [], epIdx: -1, epHint: 0, curRow: null
   };
   var plyMode = "ep";
@@ -399,6 +421,7 @@
 
   /* ---------- 页签 ---------- */
   function switchView(v) {
+    if (v === "search" && state.view !== "search") state.fromView = state.view;
     state.view = v;
     ["home", "cat", "search", "follow", "hist", "mine"].forEach(function (x) {
       $("v-" + x).classList.toggle("on", x === v);
@@ -406,12 +429,17 @@
     document.querySelectorAll("#tabbar .tb").forEach(function (t) {
       t.classList.toggle("on", t.dataset.v === v);
     });
+    document.body.dataset.view = v;
     if (v === "follow") renderFollow();
     if (v === "hist") renderHist();
     if (v === "mine") renderFav();
-    if (v === "search") { renderSHist(); setTimeout(function () { try { $("q").focus(); } catch (e) {} }, 100); }
-    if (v === "search") renderJumps();
-    if (v === "home" && !$("homeGrid").children.length) loadHome(false);
+    if (v === "search") {
+      renderSHist();
+      renderJumps();
+      if (!$("searchGrid").children.length) renderSearchHot();
+      setTimeout(function () { try { $("q").focus(); } catch (e) {} }, 100);
+    }
+    if (v === "home" && !$("homeBlocks").children.length) { renderHome(); loadHome(false); }
     if (v === "cat" && !$("catGrid").children.length) loadCat(false);
     window.scrollTo(0, 0);
   }
@@ -419,42 +447,165 @@
     t.onclick = function () { switchView(t.dataset.v); };
   });
   $("searchOpen").onclick = function () { switchView("search"); $("q").focus(); };
+  $("sBack").onclick = function () { switchView(state.fromView || "home"); };
 
   /* ---------- 首页（多页拉取 + 热度排行） ---------- */
   var homeLoading = false, homePool = [];
   function loadHome(more) {
     if (state.loading) return;
     state.loading = true;
-    status("home", more ? "加载更多…" : "加载中…");
-    var pages = more ? [state.homePg] : [1, 2, 3];
+    status("home", "加载中…");
+    var pages = [1, 2, 3, 4, 5];
     var done = 0;
     pages.forEach(function (pg) {
       api(API + "?ac=videolist&h=24&wd=%20&pg=" + pg).then(function (r) {
         var fresh = [];
         (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) fresh.push(x); });
-        homePool = mergeBySort(homePool, fresh).sort(byHitsDesc);
-        state.homePg = Math.max(state.homePg, pg);
-        renderHomeGrid();
+        homePool = mergeBySort(homePool, fresh);
+        renderHome();
       }).catch(function () {}).then(function () {
         done++;
-        if (done === pages.length) {
-          if (homePool.length) status("home", "共 " + homePool.length + " 部");
-          else status("home", "加载失败，请稍后重试");
-          state.loading = false;
-        }
+        if (done === pages.length) { status("home", ""); state.loading = false; }
       });
     });
   }
-  function renderHomeGrid() {
-    var grid = $("homeGrid"); grid.innerHTML = "";
-    homePool.forEach(function (row) {
+  function cnScore(row) {
+    var tt = row.type_name || "", s = hitsOf(row);
+    if (/国产|大陆|内地|华语/.test(tt)) s += 500;
+    if (/韩国|日本|美国|欧美|泰国|海外/.test(tt)) s -= 200;
+    var y = parseInt(row.vod_year, 10) || 0;
+    if (y && y < 2015) s -= 150;
+    return s;
+  }
+  function hcard(row, onClick, tag, sub) {
+    var d = document.createElement("div");
+    d.className = "hcard";
+    d.innerHTML = '<div class="pw"><img loading="lazy" decoding="async" alt=""><span class="ht"></span></div><div class="pn"></div><div class="pr"></div>';
+    if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
+    d.querySelector(".pn").textContent = row.vod_name;
+    d.querySelector(".pr").textContent = sub || [row.type_name, row.vod_year].filter(Boolean).join(" · ");
+    var ht = d.querySelector(".ht");
+    if (tag) ht.textContent = tag; else ht.style.display = "none";
+    d.onclick = onClick;
+    return d;
+  }
+  function section(title, small) {
+    var w = document.createElement("div"), h = document.createElement("div");
+    h.className = "bsec";
+    h.innerHTML = title + (small ? " <small>" + small + "</small>" : "");
+    w.appendChild(h);
+    $("homeBlocks").appendChild(w);
+    return w;
+  }
+  function gridIn(wrap, rows, showHot) {
+    var g = document.createElement("div");
+    g.className = "grid";
+    rows.forEach(function (row) {
       var c = pcard(row, function () { openDetail(row); });
-      var pr = c.querySelector(".pr");
+      if (showHot) {
+        var hv = hitsOf(row);
+        if (hv > 0) c.querySelector(".pr").textContent += " · 热" + fmtHot(hv);
+      }
+      g.appendChild(c);
+    });
+    wrap.appendChild(g);
+  }
+  function rowIn(wrap, items) {
+    var hr = document.createElement("div");
+    hr.className = "hrow";
+    items.forEach(function (it) {
+      hr.appendChild(hcard(it.row, it.onClick, it.tag, it.sub));
+    });
+    wrap.appendChild(hr);
+  }
+  function renderHome() {
+    var block = $("homeBlocks");
+    if (!block) return;
+    block.innerHTML = "";
+    var prog = getProg(), follow = getFollow();
+    var seen = {};
+    follow.forEach(function (f) { seen[String(f.id)] = 1; });
+    // 1 继续观看(没看完的优先推送)
+    var cont = getWH().filter(function (h) {
+      var p = prog[String(h.id)];
+      return p && h.epsTotal && p.ep < h.epsTotal;
+    }).slice(0, 12);
+    if (cont.length) {
+      cont.forEach(function (h) { seen[String(h.id)] = 1; });
+      var w1 = section("继续观看", "接着上次看");
+      rowIn(w1, cont.map(function (h) {
+        var p = prog[String(h.id)];
+        return {
+          row: { vod_id: h.id, vod_name: h.name, vod_pic: h.pic, type_name: h.type || "" },
+          tag: p.name, sub: "看到第" + p.ep + "集 · 共" + h.epsTotal + "集",
+          onClick: function () { openDetail({ vod_id: h.id, vod_name: h.name, vod_pic: h.pic }, p.ep - 1); }
+        };
+      }));
+    }
+    // 2 你正在追(周更提醒)
+    if (follow.length) {
+      var anyUpd = follow.some(function (f) { return f.upd; });
+      var w2 = section("你正在追", anyUpd ? "有更新" : "周更提醒");
+      rowIn(w2, follow.slice(0, 12).map(function (f) {
+        var p = prog[String(f.id)];
+        return {
+          row: { vod_id: f.id, vod_name: f.name, vod_pic: f.pic, type_name: f.type || "" },
+          tag: f.upd ? "有更新" : "",
+          sub: f.upd ? "更新了新集数" : (p ? "看到第" + p.ep + "集" : (f.remarks || "")),
+          onClick: function () { openDetail({ vod_id: f.id, vod_name: f.name, vod_pic: f.pic, vod_remarks: f.remarks || "" }, p ? p.ep - 1 : 0); }
+        };
+      }));
+    }
+    // 3 每日推荐(口味画像:追3票/藏2票/看1票)
+    var taste = {};
+    follow.forEach(function (f) { if (f.type) taste[f.type] = (taste[f.type] || 0) + 3; });
+    getFav().forEach(function (f) { if (f.type) taste[f.type] = (taste[f.type] || 0) + 2; });
+    getWH().forEach(function (h) { if (h.type) taste[h.type] = (taste[h.type] || 0) + 1; });
+    var top = Object.keys(taste).sort(function (a, b) { return taste[b] - taste[a]; }).slice(0, 3);
+    if (!top.length) top = ["国产剧", "国产动漫", "大陆综艺"];
+    var recs = homePool.filter(function (row) {
+      var tt = row.type_name || "";
+      return !seen[String(row.vod_id)] && top.some(function (x) { return tt.indexOf(x) >= 0 || x.indexOf(tt) >= 0; });
+    }).sort(function (a, b) { return cnScore(b) - cnScore(a); }).slice(0, 6);
+    if (recs.length) {
+      recs.forEach(function (r) { seen[String(r.vod_id)] = 1; });
+      gridIn(section("每日推荐", "根据你的口味"), recs, true);
+    }
+    // 4 热播榜(全网真实播放热度)
+    var hot = homePool.slice().sort(byHitsDesc).slice(0, 12);
+    if (hot.length) {
+      var w4 = section("热播榜", "全网播放热度");
+      rowIn(w4, hot.map(function (row) {
+        return {
+          row: row, tag: "热" + fmtHot(hitsOf(row)),
+          sub: [row.type_name, row.vod_year].filter(Boolean).join(" · "),
+          onClick: function () { openDetail(row); }
+        };
+      }));
+    }
+    // 5 重磅新剧(本年国产)
+    var yr = String(new Date().getFullYear());
+    var fresh = homePool.filter(function (row) {
+      return row.vod_year === yr && /国产|大陆/.test(row.type_name || "") && !seen[String(row.vod_id)];
+    }).sort(function (a, b) { return cnScore(b) - cnScore(a); }).slice(0, 6);
+    if (fresh.length) gridIn(section("重磅新剧", yr + " · 国产"), fresh, false);
+    // 6 正在更新(其余,国产优先,少量国外爆款靠热度自然进入)
+    var rest = homePool.filter(function (row) { return !seen[String(row.vod_id)]; })
+      .sort(function (a, b) { return cnScore(b) - cnScore(a); }).slice(0, 24);
+    if (rest.length) gridIn(section("正在更新", "国产优先 · 每日更新"), rest, true);
+    prefetchDetails(homePool);
+  }
+  function renderSearchHot() {
+    var sec = $("hotSec"), grid = $("hotGrid");
+    if (!homePool.length) { loadHome(false); return; }
+    sec.style.display = "block";
+    grid.innerHTML = "";
+    homePool.slice().sort(function (a, b) { return cnScore(b) - cnScore(a); }).slice(0, 12).forEach(function (row) {
+      var c = pcard(row, function () { openDetail(row); });
       var hv = hitsOf(row);
-      if (hv > 0) pr.textContent += " · 热" + fmtHot(hv);
+      if (hv > 0) c.querySelector(".pr").textContent += " · 热" + fmtHot(hv);
       grid.appendChild(c);
     });
-    prefetchDetails(homePool);
   }
   function prefetchDetails(rows) {
     rows.slice(0, 6).forEach(function (row, i) {
@@ -485,6 +636,14 @@
       };
       box.appendChild(s);
     });
+    var t2 = document.createElement("span");
+    t2.className = "chip" + (state.cnOnly ? " on" : "");
+    t2.textContent = "只看国产";
+    t2.onclick = function () {
+      state.cnOnly = !state.cnOnly;
+      renderCatChips(); renderCatGrid();
+    };
+    box.appendChild(t2);
   }
   function loadCat(more) {
     if (catLoading) return;
@@ -511,10 +670,13 @@
   }
   function renderCatGrid() {
     var grid = $("catGrid"); grid.innerHTML = "";
-    catPool.forEach(function (row) {
+    var rows = catPool.filter(function (row) {
+      return !state.cnOnly || /国产|大陆/.test(row.type_name || "");
+    });
+    rows.forEach(function (row) {
       grid.appendChild(pcard(row, function () { openDetail(row); }));
     });
-    prefetchDetails(catPool);
+    prefetchDetails(rows);
   }
 
   /* ---------- 搜索（画质探测+⭐推荐+历史） ---------- */
@@ -526,6 +688,7 @@
     searching = true; $("go").disabled = true; $("err").textContent = "";
     status("search", "搜索「" + raw + "」…");
     $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
+    $("hotSec").style.display = "none"; $("hotGrid").innerHTML = "";
     state.epHint = parseHint(raw);
     var title = raw.replace(/第?\s*\d{1,4}\s*[集期话]/g, "").replace(/^[，,。.\s]+|[，,。.\s]+$/g, "").trim() || raw;
     try {
@@ -713,7 +876,7 @@
       $("dFollow").textContent = "追剧";
       tip("已取消追剧");
     } else {
-      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", remarks: detailRow.vod_remarks || "", eps: epsOf(detailRow).length });
+      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", type: detailRow.type_name || "", remarks: detailRow.vod_remarks || "", eps: epsOf(detailRow).length });
       setFollow(list);
       $("dFollow").textContent = "已追";
       tip("已追，有更新会提醒");
@@ -733,7 +896,7 @@
       setDFavBtn(false);
       tip("已取消收藏");
     } else {
-      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", remarks: detailRow.vod_remarks || "" });
+      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", type: detailRow.type_name || "", remarks: detailRow.vod_remarks || "" });
       setFav(list);
       setDFavBtn(true);
       tip("已收藏");
@@ -752,7 +915,7 @@
       var wh = getWH().filter(function (x) { return x.id !== String(state.curRow.vod_id); });
       wh.unshift({
         id: String(state.curRow.vod_id), name: state.curRow.vod_name, pic: state.curRow.vod_pic || "",
-        epIdx: i, epName: ep.name || ("第" + (i + 1) + "集"), epsTotal: state.eps.length, t: Date.now()
+        type: state.curRow.type_name || "", epIdx: i, epName: ep.name || ("第" + (i + 1) + "集"), epsTotal: state.eps.length, t: Date.now()
       });
       setWH(wh.slice(0, 50));
     }
@@ -897,6 +1060,7 @@
       status("follow", "");
       rs.forEach(function (r) {
         var upd = r.now > (r.f.eps || 0);
+        r.f.upd = upd;
         var d = document.createElement("div");
         d.className = "frow";
         d.innerHTML = '<img alt=""><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
@@ -1004,7 +1168,16 @@
 
   /* ---------- 启动 ---------- */
   renderCatChips();
+  renderHome();
   loadHome(false);
+  $("clearData").onclick = function () {
+    if (!confirm("确定清除本机的追剧 / 收藏 / 观看历史吗？")) return;
+    ["m_follow", "m_fav", "m_prog", "m_whist", "m_shist"].forEach(function (k) {
+      try { localStorage.removeItem(k); } catch (e) {}
+    });
+    renderHome(); renderFav(); renderFollow(); renderHist();
+    tip("已清除");
+  };
 })();
 </script>
 <script>
