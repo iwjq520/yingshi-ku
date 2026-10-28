@@ -163,6 +163,11 @@
   .bsec small { font-size: 11px; color: #5f6570; font-weight: 400; margin-left: 8px; }
   .sback { flex-shrink: 0; width: 42px; min-height: 42px; font-size: 24px; line-height: 1; color: #e8eaee;
     background: #1e2228; border: none; border-radius: 999px; cursor: pointer; }
+  .mtbtn { float: right; padding: 3px 12px; font-size: 11px; border-radius: 999px; border: 1px solid #2f3540;
+    background: transparent; color: #7d838c; cursor: pointer; }
+  .chip em { font-style: normal; }
+  .chip b { margin-left: 7px; color: #6a7077; font-weight: 400; }
+  .chip.schipclr { color: #ff8a8a; }
   .dangertool { width: 100%; padding: 11px 14px; font-size: 13px; border-radius: 8px; cursor: pointer;
     border: 1px solid #4a2530; background: transparent; color: #ff8a8a; }
   body[data-view="search"] .sbar { display: none; }
@@ -198,8 +203,6 @@
       <div class="err" id="err"></div>
       <div class="status" id="st-search"></div>
       <div class="chips" id="shist"></div>
-      <div class="sec">官方平台 <small>拷剧集页链接，回「我的」一键播放</small></div>
-      <div class="chips" id="jumps"></div>
       <div class="grid" id="searchGrid"></div>
       <div class="sec" id="hotSec" style="display:none">今日热播 <small>全网播放热度 · 国产优先</small></div>
       <div class="grid" id="hotGrid"></div>
@@ -210,16 +213,7 @@
       <div id="followList"></div>
     </section>
 
-    <section class="view" id="v-hist">
-      <div class="status" id="st-hist"></div>
-      <div id="histList"></div>
-    </section>
-
-    <section class="view" id="v-mine">
-      <div class="mineCard">
-        <div class="mt">我的收藏</div>
-        <div id="favBox"></div>
-      </div>
+    <section class="view" id="v-parse">
       <div class="mineCard">
         <div class="mt">官方源解析 <small>无拼接广告 · 画质同平台</small></div>
         <div style="font-size:12px;color:#7d838c;line-height:1.8;margin-bottom:10px">
@@ -233,9 +227,18 @@
         <div class="perr" id="perr"></div>
         <div class="plines" id="plines"></div>
       </div>
+      <div class="sec">官方平台直达 <small>跳转平台找官方源 · 拷回链接即播</small></div>
+      <div class="chips" id="jumps"></div>
+    </section>
+
+    <section class="view" id="v-mine">
+      <div class="mineCard">
+        <div class="mt">观看历史 <button class="mtbtn" id="clearHist">清空</button></div>
+        <div id="histBox"></div>
+      </div>
       <div class="mineCard">
         <div class="mt">设置</div>
-        <button class="dangertool" id="clearData">清除本机数据（追剧 / 收藏 / 观看历史）</button>
+        <button class="dangertool" id="clearData">清除本机数据（追剧 / 观看历史）</button>
       </div>
       <div class="mineCard">
         <div class="mt">关于</div>
@@ -252,7 +255,7 @@
     <div class="tb on" data-v="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9h-5.5v-5.5h-5V20H4z"/></svg>首页</div>
     <div class="tb" data-v="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>分类</div>
     <div class="tb" data-v="follow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 4h10v16l-5-3.8L7 20z"/></svg>追剧</div>
-    <div class="tb" data-v="hist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 1.8"/></svg>历史</div>
+    <div class="tb" data-v="parse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>解析</div>
     <div class="tb" data-v="mine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.8"/><path d="M5 20c.8-4 3.6-5.8 7-5.8s6.2 1.8 7 5.8"/></svg>我的</div>
   </nav>
 
@@ -268,7 +271,6 @@
     <div class="dact">
       <button class="play" id="dPlay">立即播放</button>
       <button class="star" id="dFollow">追剧</button>
-      <button class="star" id="dFav">收藏</button>
     </div>
     <div class="dsec" id="dLineSec">播放线路 <small>按画质排序</small></div>
     <div class="eps" id="dLines"></div>
@@ -432,7 +434,7 @@
   function switchView(v) {
     if (v === "search" && state.view !== "search") state.fromView = state.view;
     state.view = v;
-    ["home", "cat", "search", "follow", "hist", "mine"].forEach(function (x) {
+    ["home", "cat", "search", "follow", "parse", "mine"].forEach(function (x) {
       $("v-" + x).classList.toggle("on", x === v);
     });
     document.querySelectorAll("#tabbar .tb").forEach(function (t) {
@@ -440,11 +442,10 @@
     });
     document.body.dataset.view = v;
     if (v === "follow") renderFollow();
-    if (v === "hist") renderHist();
-    if (v === "mine") renderFav();
+    if (v === "mine") renderHist();
+    if (v === "parse") renderJumps();
     if (v === "search") {
       renderSHist();
-      renderJumps();
       if (!$("searchGrid").children.length) renderSearchHot();
       setTimeout(function () { try { $("q").focus(); } catch (e) {} }, 100);
     }
@@ -574,7 +575,6 @@
     // 3 每日推荐(口味画像:追3票/藏2票/看1票)
     var taste = {};
     follow.forEach(function (f) { if (f.type) taste[f.type] = (taste[f.type] || 0) + 3; });
-    getFav().forEach(function (f) { if (f.type) taste[f.type] = (taste[f.type] || 0) + 2; });
     getWH().forEach(function (h) { if (h.type) taste[h.type] = (taste[h.type] || 0) + 1; });
     var top = Object.keys(taste).sort(function (a, b) { return taste[b] - taste[a]; }).slice(0, 3);
     if (!top.length) top = ["国产剧", "国产动漫", "大陆综艺"];
@@ -672,7 +672,7 @@
     catLoading = true;
     status("cat", more ? "加载更多…" : "加载中…");
     var pages = more ? [state.catPg] : [1, 2, 3];
-    var done = 0;
+    var done = 0, failed = 0;
     pages.forEach(function (pg) {
       api(API + "?ac=videolist&t=" + state.catId + "&wd=%20&pg=" + pg).then(function (r) {
         if (gen !== state.catGen) return;
@@ -680,17 +680,20 @@
         (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) fresh.push(x); });
         catPool = mergeBySort(catPool, fresh);
         renderCatGrid();
-      }).catch(function () {}).then(function () {
+      }).catch(function () { failed++; }).then(function () {
         if (gen !== state.catGen) return;
         done++;
         if (done === pages.length) {
           if (catPool.length) {
             status("cat", "共 " + catPool.length + " 部");
             $("st-cat").style.cursor = ""; $("st-cat").onclick = null;
-          } else {
+          } else if (failed >= pages.length) {
             status("cat", "加载失败，点此重试");
             $("st-cat").style.cursor = "pointer";
             $("st-cat").onclick = function () { loadCat(false); };
+          } else {
+            status("cat", "该栏目今日暂无更新，过来看看别的吧");
+            $("st-cat").style.cursor = ""; $("st-cat").onclick = null;
           }
           catLoading = false;
         }
@@ -819,12 +822,32 @@
     box.innerHTML = "";
     try {
       var sh = getJ("m_shist", "[]");
-      sh.forEach(function (x) {
+      sh.forEach(function (x, i) {
         var s = document.createElement("span");
-        s.className = "chip"; s.textContent = x;
+        s.className = "chip";
+        var em = document.createElement("em");
+        em.textContent = x;
+        var b = document.createElement("b");
+        b.textContent = "×";
+        b.onclick = function (ev) {
+          ev.stopPropagation();
+          var arr = getJ("m_shist", "[]");
+          arr.splice(i, 1);
+          setJ("m_shist", arr);
+          renderSHist();
+        };
+        s.appendChild(em);
+        s.appendChild(b);
         s.onclick = function () { $("q").value = x; doSearch(); };
         box.appendChild(s);
       });
+      if (sh.length) {
+        var clr = document.createElement("span");
+        clr.className = "chip schipclr";
+        clr.textContent = "清空";
+        clr.onclick = function () { setJ("m_shist", []); renderSHist(); };
+        box.appendChild(clr);
+      }
     } catch (e) {}
   }
 
@@ -839,7 +862,6 @@
     var followed0 = getFollow().some(function (f) { return String(f.id) === String(row.vod_id); });
     $("dFollow").textContent = followed0 ? "已追" : "追剧";
     $("dFollow").className = followed0 ? "star on" : "star";
-    setDFavBtn(getFav().some(function (f) { return String(f.id) === String(row.vod_id); }));
     $("dLines").innerHTML = ""; $("dEps").innerHTML = "";
     $("dLineSec").style.display = "none"; $("dEpSec").style.display = "none";
     $("dNote").textContent = "";
@@ -922,26 +944,6 @@
     }
   };
 
-  function setDFavBtn(on) {
-    $("dFav").textContent = on ? "已收藏" : "收藏";
-    $("dFav").className = on ? "star on" : "star";
-  }
-  $("dFav").onclick = function () {
-    if (!detailRow) return;
-    var list = getFav();
-    var i = list.findIndex(function (f) { return String(f.id) === String(detailRow.vod_id); });
-    if (i >= 0) {
-      setFav(list.filter(function (f) { return String(f.id) !== String(detailRow.vod_id); }));
-      setDFavBtn(false);
-      tip("已取消收藏");
-    } else {
-      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", type: detailRow.type_name || "", remarks: detailRow.vod_remarks || "" });
-      setFav(list);
-      setDFavBtn(true);
-      tip("已收藏");
-    }
-  };
-
   /* ---------- 播放 ---------- */
   function playEp(i) {
     if (!state.eps.length) return;
@@ -1021,8 +1023,7 @@
   /* ---------- 历史 ---------- */
   function renderHist() {
     var list = getWH();
-    var box = $("histList");
-    status("hist", "");
+    var box = $("histBox");
     if (!list.length) {
       box.innerHTML = '<div class="empty">还没有观看记录</div>';
       return;
@@ -1049,33 +1050,6 @@
   }
 
   /* ---------- 收藏 ---------- */
-  function renderFav() {
-    var list = getFav();
-    var box = $("favBox");
-    if (!list.length) {
-      box.innerHTML = '<div class="empty">还没有收藏。点开影片 → 点「收藏」</div>';
-      return;
-    }
-    box.innerHTML = "";
-    list.forEach(function (f) {
-      var d = document.createElement("div");
-      d.className = "frow";
-      d.innerHTML = '<img alt=""><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
-      var img = d.querySelector("img");
-      if (f.pic) img.src = f.pic;
-      d.querySelector(".fn").textContent = f.name;
-      d.querySelector(".fm").textContent = f.remarks || "";
-      d.querySelector(".fmain").onclick = function () {
-        openDetail({ vod_id: f.id, vod_name: f.name, vod_pic: f.pic, vod_remarks: f.remarks || "" }, 0);
-      };
-      d.querySelector(".fx").onclick = function (ev) {
-        ev.stopPropagation();
-        setFav(getFav().filter(function (x) { return String(x.id) !== String(f.id); }));
-        renderFav();
-      };
-      box.appendChild(d);
-    });
-  }
 
   /* ---------- 追剧 ---------- */
   function renderFollow() {
@@ -1229,8 +1203,8 @@
         else { homePool = []; loadHome(false); renderSearchHot(); }
       }
       else if (state.view === "follow") renderFollow();
-      else if (state.view === "hist") renderHist();
-      else if (state.view === "mine") renderFav();
+      else if (state.view === "mine") renderHist();
+      else if (state.view === "parse") renderJumps();
     } catch (e) {}
     setTimeout(function () {
       refreshing = false;
@@ -1265,12 +1239,19 @@
   renderHome();
   loadHome(false);
   $("clearData").onclick = function () {
-    if (!confirm("确定清除本机的追剧 / 收藏 / 观看历史吗？")) return;
+    if (!confirm("确定清除本机的追剧 / 观看历史吗？")) return;
     ["m_follow", "m_fav", "m_prog", "m_whist", "m_shist"].forEach(function (k) {
       try { localStorage.removeItem(k); } catch (e) {}
     });
-    renderHome(); renderFav(); renderFollow(); renderHist();
+    renderHome(); renderFollow(); renderHist();
     tip("已清除");
+  };
+  $("clearHist").onclick = function () {
+    if (!confirm("确定清空全部观看历史吗？")) return;
+    setWH([]);
+    renderHist();
+    renderHome();
+    tip("已清空观看历史");
   };
 })();
 </script>
