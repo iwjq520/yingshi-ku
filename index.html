@@ -245,15 +245,21 @@
 
     <section class="view" id="v-parse">
       <div class="mineCard">
-        <div class="mt">三步看官方源 <small>无拼接广告 · 画质同平台</small></div>
-        <div class="steps">
-          <div class="step"><i>1</i><span>下方<b>输入剧名</b>（如：斗破苍穹），点平台按钮直达搜索</span></div>
-          <div class="step"><i>2</i><span>在平台<b>点开想看的那一集</b></span></div>
-          <div class="step"><i>3</i><span>分享 → <b>拷贝链接</b> → 回来<b>长按输入框粘贴</b>即自动播放<br>
-            <small style="color:#5f6570">复制方法：长按浏览器<b style="color:#c9ced6">底部的网址条</b> → 拷贝；或点分享按钮 □↑ → 拷贝链接</small></span></div>
-        </div>
+        <div class="mt">① 跳官方平台找剧 <small>输入剧名 · 点平台自动帮您搜好</small></div>
         <div class="prow">
-          <input id="purl" type="text" inputmode="text" autocapitalize="off" placeholder="长按此处粘贴链接，或输入剧名找官方源">
+          <input id="pname" type="text" inputmode="text" autocapitalize="off" placeholder="输入剧名，如：斗破苍穹">
+        </div>
+        <div class="chips" id="jumps"></div>
+        <div class="steps">
+          <div class="step"><i>1</i><span>在平台<b>点开想看的那一集</b></span></div>
+          <div class="step"><i>2</i><span>分享 → <b>拷贝链接</b>（长按浏览器底部网址条 → 拷贝）</span></div>
+          <div class="step"><i>3</i><span>回下方<b>长按粘贴</b>到链接解析，即播</span></div>
+        </div>
+      </div>
+      <div class="mineCard">
+        <div class="mt">② 粘贴链接解析 <small>无拼接广告 · 画质同平台</small></div>
+        <div class="prow">
+          <input id="purl" type="text" inputmode="text" autocapitalize="off" placeholder="长按此处粘贴剧集链接">
         </div>
         <div class="perr" id="perr"></div>
         <div class="plines" id="plines"></div>
@@ -261,8 +267,6 @@
           要复制的链接 = 平台里<b style="color:#ff8f1f">那一集播放页</b>的网址（地址栏形如 v.qq.com/x/cover/… · iqiyi.com/v_… · youku.com/v_show/… · mgtv.com/b/…）。搜索页/首页的网址没用。
         </div>
       </div>
-      <div class="sec">官方平台直达 <small>输入剧名后点按钮 · 自动帮你搜好</small></div>
-      <div class="chips" id="jumps"></div>
     </section>
 
     <section class="view" id="v-mine">
@@ -1043,13 +1047,18 @@
       var sp = document.createElement("span");
       sp.className = "chip"; sp.textContent = s.name;
       sp.onclick = function () {
-        var v = ($("purl").value || "").trim();
-        if (/^https?:\/\//i.test(v)) { tip("输入框里已是链接，点上方线路直接解析"); return; }
-        if (!v) { tip("先在上方输入剧名，如：斗破苍穹"); $("purl").focus(); return; }
+        var v = ($("pname").value || "").trim();
+        if (!v) { tip("先输入剧名，如：斗破苍穹"); $("pname").focus(); return; }
         openExt(s.url + encodeURIComponent(v));
-        tip("已到" + s.name + "：点开想看的那一集 → 分享拷贝链接 → 回来长按输入框粘贴");
+        tip("已到" + s.name + "：点开想看的那一集 → 分享拷贝链接 → 回来粘贴解析");
       };
       box.appendChild(sp);
+    });
+    $("pname").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        var v = ($("pname").value || "").trim();
+        if (v) openExt(JUMPS[0].url + encodeURIComponent(v));
+      }
     });
   }
   function renderSHist() {
@@ -1484,19 +1493,6 @@
     return u;
   }
   try { var pu0 = localStorage.getItem("m_purl"); if (pu0 && !$("purl").value) $("purl").value = pu0; } catch (e) {}
-  /* 粘贴/输入合法剧集链接后自动解析(无需再点线路);剧名输入不受影响 */
-  var autoTm = null;
-  $("purl").addEventListener("input", function () {
-    clearTimeout(autoTm);
-    autoTm = setTimeout(function () {
-      var v = ($("purl").value || "").trim();
-      var hit = PLAY.some(function (p) { return p.re.test(v); });
-      if (hit) {
-        var first = $("plines").children[0];
-        if (first && first.onclick) first.onclick();
-      }
-    }, 600);
-  });
 
   /* ---------- 启动 ---------- */
   /* ---------- 下拉刷新 / 页签刷新 ---------- */
