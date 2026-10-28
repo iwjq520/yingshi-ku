@@ -1476,11 +1476,13 @@
       if (strict) $("perr").textContent = "⚠ 输入的是剧名？点下方平台按钮去官方平台搜；或粘贴剧集页链接";
       return null;
     }
+    // 只识别网址主体（?之前的 部分），避免链接参数里嵌套的搜索页网址造成误判
+    var uBody = u.split("?")[0];
     var i, known = false;
-    for (i = 0; i < PLAY.length; i++) if (PLAY[i].re.test(u)) { known = true; break; }
+    for (i = 0; i < PLAY.length; i++) if (PLAY[i].re.test(uBody)) { known = true; break; }
     if (!known) {
       var sn = "";
-      for (i = 0; i < SEARCHY.length; i++) if (SEARCHY[i].re.test(u)) { sn = SEARCHY[i].name; break; }
+      for (i = 0; i < SEARCHY.length; i++) if (SEARCHY[i].re.test(uBody)) { sn = SEARCHY[i].name; break; }
       if (sn) {
         if (strict) $("perr").textContent = "⚠ 这是" + sn + "的搜索页链接，解析不了。请回到平台点开想看的那一集，再分享拷贝剧集播放页的链接";
         return null;
