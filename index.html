@@ -334,7 +334,7 @@
       <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）">网页</button>
     </div>
     <div class="proutes" id="pRoutes" style="display:none"></div>
-    <iframe id="pFrame" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
+    <iframe id="pFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
     <video id="pVideo" playsinline webkit-playsinline controls preload="auto" style="display:none"></video>
     <div class="eplist" id="pEplist" style="display:none"></div>
   </div>
@@ -1452,9 +1452,8 @@
   /* ---------- 解析（我的） ---------- */
   var PSOURCES = [
     { name: "臻享", url: "https://jx.1ljx.com/_player/?url=", star: true },
-    { name: "麒麟", url: "https://free.maccms.xyz/?url=" },
-    { name: "TXNQ", url: "https://bfq.txnp.cn/player?url=" },
     { name: "七哥", url: "https://jx.202617.xyz/tv.php?url=" },
+    { name: "TXNQ", url: "https://bfq.txnp.cn/player?url=" },
     { name: "冰豆", url: "https://bd.jx.cn/?url=" }
   ];
   var parseWatch = null, pfLoaded = false;
@@ -1484,11 +1483,13 @@
     var f = $("pFrame");
     f.style.display = "block";
     $("ply").style.display = "flex";
-    f.src = s.url + encodeURIComponent(u);
     $("pTitle").textContent = s.name + " · 官方源播放";
     $("pEplist").innerHTML = ""; $("pEplist").style.display = "none";
     renderPRoutes(s.name);
     armParseWatch();
+    // 先空载断开旧页（立刻停掉旧站的脚本与视频流），再挂新线路——切换更快更省资源
+    f.src = "about:blank";
+    setTimeout(function () { f.src = s.url + encodeURIComponent(u); }, 80);
     if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
   }
   function renderPRoutes(cur) {
