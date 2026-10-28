@@ -168,6 +168,11 @@
   .chip em { font-style: normal; }
   .chip b { margin-left: 7px; color: #6a7077; font-weight: 400; }
   .chip.schipclr { color: #ff8a8a; }
+  .boards { display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 12px; scrollbar-width: none; }
+  .boards::-webkit-scrollbar { display: none; }
+  .board { flex-shrink: 0; width: calc(100vw - 78px); background: #171a20; border-radius: 12px; padding: 12px; }
+  .board .bt { font-size: 15px; font-weight: 700; color: #ff8f1f; margin-bottom: 6px; }
+  .board .bt small { color: #5f6570; font-weight: 400; font-size: 10px; margin-left: 4px; letter-spacing: 1px; }
   .sug { display: flex; gap: 10px; padding: 9px 4px; align-items: center; cursor: pointer; border-bottom: 1px solid #1c2027; }
   .sug img { width: 46px; height: 62px; border-radius: 4px; object-fit: cover; background: #1a1d23; flex-shrink: 0; }
   .sug .sn { font-size: 13.5px; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -222,7 +227,7 @@
       <div id="sugBox" style="display:none"></div>
       <div class="chips" id="shist"></div>
       <div class="grid" id="searchGrid"></div>
-      <div class="sec" id="hotSec" style="display:none">热播榜 <small>全网播放热度 · TOP10</small></div>
+      <div class="sec" id="hotSec" style="display:none">榜单 <small>全网播放热度 · 左右滑动查看更多</small></div>
       <div class="grid" id="hotGrid"></div>
     </section>
 
@@ -685,25 +690,44 @@
     if (rest.length) gridIn(section("正在更新", "国产优先 · 每日更新"), rest, true);
     prefetchDetails(homePool);
   }
+  var BOARDS = [
+    { title: "热播榜", en: "HOT", match: null },
+    { title: "电视剧榜", en: "TV SERIES", match: /剧/ },
+    { title: "动漫榜", en: "ANIME", match: /动漫|动画/ },
+    { title: "电影榜", en: "MOVIE", match: /片$|电影/ },
+    { title: "综艺榜", en: "VARIETY", match: /综艺/ }
+  ];
   function renderSearchHot() {
     var sec = $("hotSec"), grid = $("hotGrid");
     if (!homePool.length) { loadHome(false); return; }
     sec.style.display = "block";
-    grid.className = "";
+    grid.className = "boards";
     grid.innerHTML = "";
-    var hot = homePool.slice().sort(byHitsDesc).slice(0, 10);
-    hot.forEach(function (row, i) {
-      var d = document.createElement("div");
-      d.className = "rank";
-      var noCls = "no" + (i + 1);
-      d.innerHTML = '<span class="no ' + noCls + '">' + (i + 1) + '</span><img loading="lazy" decoding="async" alt="">' +
-        '<div style="flex:1;min-width:0"><div class="rn"></div><div class="rm"></div></div>';
-      if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
-      var hv = hitsOf(row);
-      d.querySelector(".rn").textContent = row.vod_name;
-      d.querySelector(".rm").textContent = [[row.type_name, row.vod_year].filter(Boolean).join(" · "), hv ? "热" + fmtHot(hv) : ""].filter(Boolean).join(" · ");
-      d.onclick = function () { openDetail(row); };
-      grid.appendChild(d);
+    BOARDS.forEach(function (b) {
+      var rows = homePool.filter(function (row) {
+        var tn = row.type_name || "";
+        return !b.match || b.match.test(tn);
+      }).sort(byHitsDesc).slice(0, 10);
+      if (!rows.length) return;
+      var col = document.createElement("div");
+      col.className = "board";
+      var bt = document.createElement("div");
+      bt.className = "bt";
+      bt.innerHTML = b.title + " <small>" + b.en + "</small>";
+      col.appendChild(bt);
+      rows.forEach(function (row, i) {
+        var d = document.createElement("div");
+        d.className = "rank";
+        d.innerHTML = '<span class="no no' + (i + 1) + '">' + (i + 1) + '</span><img loading="lazy" decoding="async" alt="">' +
+          '<div style="flex:1;min-width:0"><div class="rn"></div><div class="rm"></div></div>';
+        if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
+        var hv = hitsOf(row);
+        d.querySelector(".rn").textContent = row.vod_name;
+        d.querySelector(".rm").textContent = [[row.type_name, row.vod_year].filter(Boolean).join(" · "), hv ? "热" + fmtHot(hv) : ""].filter(Boolean).join(" · ");
+        d.onclick = function () { openDetail(row); };
+        col.appendChild(d);
+      });
+      grid.appendChild(col);
     });
   }
   function prefetchDetails(rows) {
@@ -875,19 +899,34 @@
   }
   $("go").onclick = doSearch;
   $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
-  /* ---------- 搜索实时联想(打字即搜,腾讯式) ---------- */
-  var sugTimer = null, sugGen = 0, composing = false;
+  /* ---------- 搜索实时联想(打字即搜,腾讯式;iOS输入法全兼容) ---------- */
+  var sugTimer = null, sugGen = 0;
+  function sugFallback(kw) {
+    var box = $("sugBox");
+    box.innerHTML = "";
+    var d = document.createElement("div");
+    d.className = "sug";
+    var sn = document.createElement("div");
+    sn.className = "sn";
+    var b = document.createElement("b");
+    b.textContent = "搜索「" + kw + "」";
+    sn.appendChild(b);
+    d.appendChild(sn);
+    d.onclick = function () { box.style.display = "none"; box.innerHTML = ""; $("q").value = kw; doSearch(); };
+    box.appendChild(d);
+    box.style.display = "block";
+  }
   function sugTick() {
     clearTimeout(sugTimer);
     sugTimer = setTimeout(function () {
       var kw = ($("q").value || "").trim();
-      if (!kw) { $("sugBox").style.display = "none"; $("sugBox").innerHTML = ""; return; }
+      var box = $("sugBox");
+      if (!kw) { box.style.display = "none"; box.innerHTML = ""; return; }
       var gen = ++sugGen;
-      api(API + "?ac=videolist&wd=" + encodeURIComponent(kw)).then(function (j) {
+      api(API + "?ac=videolist&wd=" + encodeURIComponent(kw), { front: true, retries: 2, fresh: true }).then(function (j) {
         if (gen !== sugGen || state.view !== "search") return;
         var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; }).slice(0, 8);
-        if (!list.length) { $("sugBox").style.display = "none"; return; }
-        var box = $("sugBox");
+        if (!list.length) { sugFallback(kw); return; }
         box.innerHTML = "";
         list.forEach(function (row) {
           var d = document.createElement("div");
@@ -907,16 +946,17 @@
             sn.appendChild(bg);
           }
           d.querySelector(".sm").textContent = [row.vod_year, row.vod_remarks].filter(Boolean).join(" · ");
-          d.onclick = function () { $("sugBox").style.display = "none"; $("sugBox").innerHTML = ""; openDetail(row); };
+          d.onclick = function () { box.style.display = "none"; box.innerHTML = ""; openDetail(row); };
           box.appendChild(d);
         });
         box.style.display = "block";
-      }).catch(function () {});
-    }, 350);
+      }).catch(function () {
+        if (gen === sugGen) sugFallback(kw);
+      });
+    }, 250);
   }
-  $("q").addEventListener("input", function () { if (!composing) sugTick(); });
-  $("q").addEventListener("compositionstart", function () { composing = true; });
-  $("q").addEventListener("compositionend", function () { composing = false; sugTick(); });
+  $("q").addEventListener("input", sugTick);
+  $("q").addEventListener("compositionend", sugTick);
   // iOS 内嵌浏览器(Documents等WKWebView宿主)与旧版PWA会静默吞掉 window.open，
   // 返回空时退到当前页跳转，保证必有反应
   function openExt(u) {
@@ -1463,6 +1503,7 @@
   };
 })();
 </script>
+
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
