@@ -11,6 +11,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+<link rel="preconnect" href="https://jx.1ljx.com" crossorigin>
+<link rel="dns-prefetch" href="https://jx.1ljx.com">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { background: #0f1114; }
@@ -1449,19 +1451,29 @@
 
   /* ---------- 解析（我的） ---------- */
   var PSOURCES = [
-    { name: "臻享", url: "https://aibox.eu.org/?url=", star: true },
+    { name: "臻享", url: "https://jx.1ljx.com/_player/?url=", star: true },
     { name: "麒麟", url: "https://free.maccms.xyz/?url=" },
     { name: "TXNQ", url: "https://bfq.txnp.cn/player?url=" },
     { name: "七哥", url: "https://jx.202617.xyz/tv.php?url=" },
     { name: "冰豆", url: "https://bd.jx.cn/?url=" }
   ];
-  var parseWatch = null;
+  var parseWatch = null, pfLoaded = false;
+  (function () {
+    $("pFrame").addEventListener("load", function () {
+      if (this.src && this.src.indexOf("about:") < 0) pfLoaded = true;
+    });
+  })();
   function armParseWatch() {
+    pfLoaded = false;
     clearTimeout(parseWatch);
     parseWatch = setTimeout(function () {
       if (window.plyMode !== "parse") return;
-      tip("一直转圈多是这条线路卡了：点顶部线路名换一条，或点「网页」用浏览器播");
-    }, 12000);
+      if (!pfLoaded) { tip("这条线路连接慢：点顶部其他线路名，或点「↻」重试"); return; }
+      parseWatch = setTimeout(function () {
+        if (window.plyMode !== "parse") return;
+        tip("还没出画面多是线路卡了：换一条线路，或点「网页」用浏览器播");
+      }, 12000);
+    }, 10000);
   }
   function openParse(s, u) {
     window.plyParseU = u;
