@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" style="background:#0f1114">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
@@ -416,20 +416,23 @@
     state.loading = true;
     status("home", more ? "加载更多…" : "加载中…");
     var pages = more ? [state.homePg] : [1, 2, 3];
-    var jobs = pages.map(function (pg) {
-      return api(API + "?ac=videolist&h=24&wd=%20&pg=" + pg).catch(function () { return { list: [] }; });
-    });
-    Promise.all(jobs).then(function (rs) {
-      var fresh = [];
-      rs.forEach(function (r) {
+    var done = 0;
+    pages.forEach(function (pg) {
+      api(API + "?ac=videolist&h=24&wd=%20&pg=" + pg).then(function (r) {
+        var fresh = [];
         (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) fresh.push(x); });
+        homePool = mergeBySort(homePool, fresh).sort(byHitsDesc);
+        state.homePg = Math.max(state.homePg, pg);
+        renderHomeGrid();
+      }).catch(function () {}).then(function () {
+        done++;
+        if (done === pages.length) {
+          if (homePool.length) status("home", "共 " + homePool.length + " 部");
+          else status("home", "加载失败，请稍后重试");
+          state.loading = false;
+        }
       });
-      homePool = mergeBySort(homePool, fresh).sort(byHitsDesc);
-      state.homePg = pages[pages.length - 1];
-      renderHomeGrid();
-      status("home", "共 " + homePool.length + " 部");
-    }).catch(function (e) { status("home", "加载失败：" + e.message); })
-      .finally(function () { state.loading = false; });
+    });
   }
   function renderHomeGrid() {
     var grid = $("homeGrid"); grid.innerHTML = "";
@@ -469,20 +472,23 @@
     catLoading = true;
     status("cat", more ? "加载更多…" : "加载中…");
     var pages = more ? [state.catPg] : [1, 2, 3];
-    var jobs = pages.map(function (pg) {
-      return api(API + "?ac=videolist&t=" + state.catId + "&wd=%20&pg=" + pg).catch(function () { return { list: [] }; });
-    });
-    Promise.all(jobs).then(function (rs) {
-      var fresh = [];
-      rs.forEach(function (r) {
+    var done = 0;
+    pages.forEach(function (pg) {
+      api(API + "?ac=videolist&t=" + state.catId + "&wd=%20&pg=" + pg).then(function (r) {
+        var fresh = [];
         (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) fresh.push(x); });
+        catPool = mergeBySort(catPool, fresh).sort(byHitsDesc);
+        state.catPg = Math.max(state.catPg, pg);
+        renderCatGrid();
+      }).catch(function () {}).then(function () {
+        done++;
+        if (done === pages.length) {
+          if (catPool.length) status("cat", "共 " + catPool.length + " 部");
+          else status("cat", "加载失败，请稍后重试");
+          catLoading = false;
+        }
       });
-      catPool = mergeBySort(catPool, fresh).sort(byHitsDesc);
-      state.catPg = pages[pages.length - 1];
-      renderCatGrid();
-      status("cat", "共 " + catPool.length + " 部");
-    }).catch(function (e) { status("cat", "加载失败：" + e.message); })
-      .finally(function () { catLoading = false; });
+    });
   }
   function renderCatGrid() {
     var grid = $("catGrid"); grid.innerHTML = "";
