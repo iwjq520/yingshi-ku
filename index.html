@@ -446,6 +446,11 @@
   function hitsOf(row) {
     return Number(row.vod_hits_day) || Number(row.vod_hits_week) || Number(row.vod_hits) || 0;
   }
+  function fmtT(s) {
+    s = Math.floor(s || 0);
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+    return (h > 0 ? h + ":" : "") + m + ":" + (ss < 10 ? "0" : "") + ss;
+  }
   function fmtHot(n) {
     n = Number(n) || 0;
     if (n >= 100000000) return (n / 100000000).toFixed(1) + "亿";
@@ -580,19 +585,26 @@
     var prog = getProg(), follow = getFollow();
     var seen = {};
     follow.forEach(function (f) { seen[String(f.id)] = 1; });
-    // 1 继续观看(没看完的优先推送)
-    var cont = getWH().filter(function (h) {
+    // 1 最近在看(累计观看满15分钟自动收录,实时更新)
+    var cont = [];
+    getWH().forEach(function (h) {
       var p = prog[String(h.id)];
-      return p && h.epsTotal && p.ep < h.epsTotal;
-    }).slice(0, 12);
+      if (p && (p.wsec || 0) >= 900 && (!h.epsTotal || p.ep < h.epsTotal)) cont.push(h);
+    });
+    cont.sort(function (a, b) {
+      var pa = prog[String(a.id)] || {}, pb = prog[String(b.id)] || {};
+      return (pb.t || 0) - (pa.t || 0);
+    });
+    cont = cont.slice(0, 12);
     if (cont.length) {
       cont.forEach(function (h) { seen[String(h.id)] = 1; });
-      var w1 = section("继续观看", "接着上次看");
+      var w1 = section("最近在看", "观看满15分钟自动收录");
       rowIn(w1, cont.map(function (h) {
         var p = prog[String(h.id)];
         return {
           row: { vod_id: h.id, vod_name: h.name, vod_pic: h.pic, type_name: h.type || "" },
-          tag: p.name, sub: "看到第" + p.ep + "集 · 共" + h.epsTotal + "集",
+          tag: p.sec ? "看到 " + fmtT(p.sec) : (p.name || ""),
+          sub: "第" + p.ep + "集 · 累计观看 " + Math.round((p.wsec || 0) / 60) + " 分钟",
           onClick: function () { openDetail({ vod_id: h.id, vod_name: h.name, vod_pic: h.pic }, p.ep - 1); }
         };
       }));
@@ -915,6 +927,7 @@
     $("detail").style.display = "block";
     window.scrollTo(0, 0);
     state.lines = []; state.eps = []; state.epIdx = -1;
+    var prg0 = getProg()[String(row.vod_id)];
     if (!row.vod_play_url) {
       $("dNote").textContent = "正在获取选集…";
       api(API + "?ac=videolist&wd=x&ids=" + row.vod_id).then(function (j) {
@@ -936,7 +949,12 @@
     if (!state.lines.length) { $("dNote").textContent = "没有可用播放地址"; return; }
     state.lines.forEach(function (l) { l.q = lineQuality(l); });
     state.lines.sort(function (a, b) { return b.q.v - a.q.v; });
-    state.lineIdx = 0; state.epIdx = -1;
+    state.lineIdx = 0;
+    if (jumpEp >= 0 && jumpEp < state.lines[0].eps.length) state.epIdx = jumpEp;
+    else if (prg0 && prg0.ep && prg0.ep - 1 < state.lines[0].eps.length) {
+      state.epIdx = prg0.ep - 1;
+      $("dNote").textContent = "上次看到 " + state.lines[0].eps[state.epIdx].name + (prg0.sec ? " · 播放到 " + fmtT(prg0.sec) : "") + "，点「立即播放」继续";
+    }
     renderDetailLines();
     renderDetailEps();
     Promise.all(state.lines.map(function (l) {
@@ -998,8 +1016,12 @@
     var ep = state.eps[i];
     if (state.curRow) {
       var prog = getProg();
-      prog[String(state.curRow.vod_id)] = { ep: i + 1, name: ep.name || ("第" + (i + 1) + "集"), t: Date.now() };
+      var pid = String(state.curRow.vod_id);
+      var oldp = prog[pid] || {};
+      prog[pid] = { ep: i + 1, name: ep.name || ("第" + (i + 1) + "集"), t: Date.now(), wsec: oldp.wsec || 0, sec: oldp.ep === i + 1 ? (oldp.sec || 0) : 0 };
       setProg(prog);
+      state.resumeSec = prog[pid].sec;
+      sessStart(pid);
       var wh = getWH().filter(function (x) { return x.id !== String(state.curRow.vod_id); });
       wh.unshift({
         id: String(state.curRow.vod_id), name: state.curRow.vod_name, pic: state.curRow.vod_pic || "",
@@ -1015,6 +1037,24 @@
     if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
     applyPlayer();
   }
+  var playSess = null;
+  function sessStart(pid) {
+    if (playSess && playSess.id !== pid) sessSettle();
+    if (!playSess) playSess = { id: pid, start: Date.now() };
+  }
+  function sessSettle() {
+    if (!playSess) return;
+    try {
+      var prog = getProg(); var p = prog[playSess.id];
+      if (p) { p.wsec = (p.wsec || 0) + Math.max(1, Math.round((Date.now() - playSess.start) / 1000)); setProg(prog); }
+    } catch (e) {}
+    playSess = null;
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!state.curRow || $("ply").style.display !== "flex") return;
+    if (document.hidden) sessSettle();
+    else sessStart(String(state.curRow.vod_id));
+  });
   function renderPEplist() {
     var box = $("pEplist"); box.innerHTML = "";
     state.eps.forEach(function (ep, i) {
@@ -1039,6 +1079,19 @@
     if (directMode) {
       if (v.dataset.u !== ep.url) {
         v.dataset.u = ep.url; v.src = ep.url;
+        var rs = state.resumeSec || 0;
+        if (rs > 3) {
+          var seeked = false;
+          var trySeek = function () {
+            if (seeked) return;
+            if (v.readyState >= 1) {
+              seeked = true;
+              try { v.currentTime = rs; tip("已从 " + fmtT(rs) + " 继续播放"); } catch (e) {}
+            }
+          };
+          v.addEventListener("loadedmetadata", trySeek);
+          setTimeout(trySeek, 2500);
+        }
         var p = v.play(); if (p && p.catch) p.catch(function () {});
       }
       f.style.display = "none"; v.style.display = "block";
@@ -1054,12 +1107,25 @@
     if (directMode) applyPlayer();
     else playEp(state.epIdx);
   };
+  var pv = $("pVideo");
+  pv.addEventListener("timeupdate", function () {
+    if (!state.curRow || !pv.currentTime || pv.paused) return;
+    var now = Date.now();
+    if (pv._ls && now - pv._ls < 4000) return;
+    pv._ls = now;
+    try {
+      var prog = getProg(); var p = prog[String(state.curRow.vod_id)];
+      if (p && p.ep === state.epIdx + 1) { p.sec = Math.floor(pv.currentTime); setProg(prog); }
+    } catch (e) {}
+  });
   $("pClose").onclick = function () {
+    sessSettle();
     $("ply").style.display = "none";
     $("pFrame").src = "about:blank";
     var v = $("pVideo");
     try { v.pause(); } catch (e) {}
     v.removeAttribute("src"); v.load();
+    renderHome();
   };
   $("pEps").onclick = function () {
     if (window.plyMode === "parse") { tip("解析线路自带选集，请在播放器内操作"); return; }
