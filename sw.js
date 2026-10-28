@@ -1,5 +1,6 @@
-/* 影视库 离线缓存外壳 v7:缓存秒开 + 后台静默更新 + 弱网兜底 */
-var CACHE = "yingshiku-v7";
+/* 影视库 离线缓存外壳 v8:秒开 + 后台更新 + 弱网兜底 + 海报缓存 */
+var CACHE = "yingshiku-v8";
+var IMG_CACHE = "yingshiku-imgs-v1";
 var SHELL = ["./", "./index.html", "./icon-192.png", "./icon-512.png", "./manifest.webmanifest"];
 var NET_TIMEOUT = 8000;
 self.addEventListener("install", function (e) {
@@ -7,7 +8,7 @@ self.addEventListener("install", function (e) {
 });
 self.addEventListener("activate", function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return k !== CACHE && k.indexOf("imgs") < 0; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 function fetchWithTimeout(req) {
@@ -30,6 +31,24 @@ self.addEventListener("fetch", function (e) {
   if (e.request.method !== "GET") return;
   // 影视数据接口与视频流：永远走网络（保证实时）
   if (u.indexOf("bfzyapi.com") >= 0 || u.indexOf(".m3u8") >= 0 || u.indexOf(".ts") >= 0 || u.indexOf("wsyzy") >= 0) return;
+  // 海报图片：缓存优先（同一海报只拉一次，二次浏览秒出省流量）
+  if (e.request.destination === "image") {
+    e.respondWith(
+      caches.open(IMG_CACHE).then(function (c) {
+        return c.match(e.request).then(function (hit) {
+          if (hit) return hit;
+          return fetch(e.request).then(function (r) {
+            if (r && (r.status === 200 || r.type === "opaque")) {
+              c.put(e.request, r.clone());
+              c.keys().then(function (keys) { if (keys.length > 200) c.delete(keys[0]); });
+            }
+            return r;
+          }).catch(function () { return Response.error(); });
+        });
+      })
+    );
+    return;
+  }
   // 外壳与图标：缓存秒开，后台静默拉新版，下次打开生效
   e.respondWith(
     caches.match(e.request).then(function (hit) {
@@ -37,7 +56,6 @@ self.addEventListener("fetch", function (e) {
       if (hit) return hit;
       return updating.then(function (r) {
         if (r) return r;
-        // 无缓存且网络弱：导航请求回退缓存的 index.html，避免白屏
         if (e.request.mode === "navigate") return caches.match("./index.html");
         return Response.error();
       });
