@@ -168,6 +168,9 @@
   .chip em { font-style: normal; }
   .chip b { margin-left: 7px; color: #6a7077; font-weight: 400; }
   .chip.schipclr { color: #ff8a8a; }
+  .morebtn { display: block; width: 100%; margin-top: 8px; padding: 9px; font-size: 12px;
+    border-radius: 8px; border: none; background: #232730; color: #9aa0a8; cursor: pointer; }
+  .morebtn:hover { color: #f2f3f5; }
   .dangertool { width: 100%; padding: 11px 14px; font-size: 13px; border-radius: 8px; cursor: pointer;
     border: 1px solid #4a2530; background: transparent; color: #ff8a8a; }
   body[data-view="search"] .sbar { display: none; }
@@ -298,7 +301,7 @@
   var API = "https://bfzyapi.com/api.php/provide/vod/";
   var PLAYER = "https://wsyzy.vip/m3u8/?url=";
   var state = {
-    view: "home", catId: 31, catPg: 1, homePg: 1, loading: false, cnOnly: false, catGen: 0, homeGen: 0,
+    view: "home", catId: 31, catPg: 1, homePg: 1, loading: false, cnOnly: false, catGen: 0, homeGen: 0, showAllHist: false,
     lines: [], lineIdx: 0, eps: [], epIdx: -1, epHint: 0, curRow: null
   };
   var plyMode = "ep";
@@ -1160,7 +1163,8 @@
       return;
     }
     box.innerHTML = "";
-    list.forEach(function (h) {
+    var rows = state.showAllHist ? list : list.slice(0, 3);
+    rows.forEach(function (h) {
       var d = document.createElement("div");
       d.className = "frow";
       d.innerHTML = '<img alt=""><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
@@ -1178,6 +1182,13 @@
       };
       box.appendChild(d);
     });
+    if (list.length > 3) {
+      var mb = document.createElement("button");
+      mb.className = "morebtn";
+      mb.textContent = state.showAllHist ? "收起" : "查看全部 " + list.length + " 条观看历史";
+      mb.onclick = function () { state.showAllHist = !state.showAllHist; renderHist(); };
+      box.appendChild(mb);
+    }
   }
 
   /* ---------- 收藏 ---------- */
