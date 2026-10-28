@@ -180,6 +180,7 @@
   .sug .badge { display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px; border-radius: 4px;
     background: #232730; color: #9aa0a8; vertical-align: 1px; }
   .sug .sm { font-size: 11px; color: #6a7077; margin-top: 3px; }
+  .sughint { padding: 8px 4px 2px; font-size: 11px; color: #5f6570; }
   .rank { display: flex; gap: 10px; padding: 8px 2px; align-items: center; cursor: pointer; border-bottom: 1px solid #171a20; }
   .rank img { width: 60px; height: 82px; border-radius: 5px; object-fit: cover; background: #1a1d23; flex-shrink: 0; }
   .rank .no { width: 20px; text-align: center; font-size: 16px; font-weight: 700; font-style: italic; color: #5f6570; flex-shrink: 0; }
@@ -899,8 +900,8 @@
   }
   $("go").onclick = doSearch;
   $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
-  /* ---------- 搜索实时联想(打字即搜,腾讯式;iOS输入法全兼容) ---------- */
-  var sugTimer = null, sugGen = 0;
+  /* ---------- 搜索实时联想:本地池毫秒级直出 + 网络补充(绕队列/自动取消旧请求) ---------- */
+  var sugTimer = null, sugGen = 0, sugCtl = null;
   function sugFallback(kw) {
     var box = $("sugBox");
     box.innerHTML = "";
@@ -916,47 +917,80 @@
     box.appendChild(d);
     box.style.display = "block";
   }
-  function sugTick() {
-    clearTimeout(sugTimer);
-    sugTimer = setTimeout(function () {
-      var kw = ($("q").value || "").trim();
-      var box = $("sugBox");
-      if (!kw) { box.style.display = "none"; box.innerHTML = ""; return; }
-      var gen = ++sugGen;
-      api(API + "?ac=videolist&wd=" + encodeURIComponent(kw), { front: true, retries: 2, fresh: true }).then(function (j) {
-        if (gen !== sugGen || state.view !== "search") return;
-        var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; }).slice(0, 8);
-        if (!list.length) { sugFallback(kw); return; }
-        box.innerHTML = "";
-        list.forEach(function (row) {
-          var d = document.createElement("div");
-          d.className = "sug";
-          d.innerHTML = '<img loading="lazy" alt=""><div style="flex:1;min-width:0"><div class="sn"></div><div class="sm"></div></div>';
-          if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
-          var sn = d.querySelector(".sn");
-          var idx = row.vod_name.toLowerCase().indexOf(kw.toLowerCase());
-          if (idx >= 0) {
-            sn.appendChild(document.createTextNode(row.vod_name.slice(0, idx)));
-            var b = document.createElement("b"); b.textContent = row.vod_name.slice(idx, idx + kw.length);
-            sn.appendChild(b);
-            sn.appendChild(document.createTextNode(row.vod_name.slice(idx + kw.length)));
-          } else sn.textContent = row.vod_name;
-          if (row.type_name) {
-            var bg = document.createElement("span"); bg.className = "badge"; bg.textContent = row.type_name;
-            sn.appendChild(bg);
-          }
-          d.querySelector(".sm").textContent = [row.vod_year, row.vod_remarks].filter(Boolean).join(" · ");
-          d.onclick = function () { box.style.display = "none"; box.innerHTML = ""; openDetail(row); };
-          box.appendChild(d);
-        });
-        box.style.display = "block";
-      }).catch(function () {
-        if (gen === sugGen) sugFallback(kw);
-      });
-    }, 250);
+  function sugRender(list, kw, pending) {
+    var box = $("sugBox");
+    if (!list.length && !pending) { box.style.display = "none"; box.innerHTML = ""; return; }
+    box.innerHTML = "";
+    list.forEach(function (row) {
+      var d = document.createElement("div");
+      d.className = "sug";
+      d.innerHTML = '<img loading="lazy" alt=""><div style="flex:1;min-width:0"><div class="sn"></div><div class="sm"></div></div>';
+      if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
+      var sn = d.querySelector(".sn");
+      var idx = row.vod_name.toLowerCase().indexOf(kw.toLowerCase());
+      if (idx >= 0) {
+        sn.appendChild(document.createTextNode(row.vod_name.slice(0, idx)));
+        var b = document.createElement("b"); b.textContent = row.vod_name.slice(idx, idx + kw.length);
+        sn.appendChild(b);
+        sn.appendChild(document.createTextNode(row.vod_name.slice(idx + kw.length)));
+      } else sn.textContent = row.vod_name;
+      if (row.type_name) {
+        var bg = document.createElement("span"); bg.className = "badge"; bg.textContent = row.type_name;
+        sn.appendChild(bg);
+      }
+      d.querySelector(".sm").textContent = [row.vod_year, row.vod_remarks].filter(Boolean).join(" · ");
+      d.onclick = function () { box.style.display = "none"; box.innerHTML = ""; openDetail(row); };
+      box.appendChild(d);
+    });
+    if (pending) {
+      var hint = document.createElement("div");
+      hint.className = "sughint";
+      hint.textContent = "正在搜索全网…";
+      box.appendChild(hint);
+    }
+    box.style.display = "block";
   }
-  $("q").addEventListener("input", sugTick);
-  $("q").addEventListener("compositionend", sugTick);
+  function sugLocal(kw) {
+    var lkw = kw.toLowerCase();
+    return homePool.filter(function (r) {
+      return r.vod_name && r.vod_name.toLowerCase().indexOf(lkw) >= 0;
+    }).slice(0, 8);
+  }
+  function sugNet(kw, gen) {
+    if (sugCtl) try { sugCtl.abort(); } catch (e) {}
+    var ctl = new AbortController();
+    sugCtl = ctl;
+    var tm = setTimeout(function () { ctl.abort(); }, 8000);
+    return fetch(API + "?ac=videolist&wd=" + encodeURIComponent(kw), { signal: ctl.signal }).then(function (r) {
+      clearTimeout(tm);
+      if (sugCtl !== ctl) return { list: [] };
+      return r.json();
+    }, function (e) {
+      clearTimeout(tm);
+      if (sugCtl !== ctl) return { list: [] };
+      throw e;
+    }).then(function (j) {
+      if (sugCtl !== ctl || gen !== sugGen || state.view !== "search") return;
+      var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; }).slice(0, 8);
+      if (list.length) sugRender(list, kw, false);
+      else if (!sugLocal(kw).length) sugFallback(kw);
+    }).catch(function () {});
+  }
+  function sugTick(immediate) {
+    var kw = ($("q").value || "").trim();
+    var box = $("sugBox");
+    clearTimeout(sugTimer);
+    if (!kw) { box.style.display = "none"; box.innerHTML = ""; sugGen++; if (sugCtl) try { sugCtl.abort(); } catch (e) {} return; }
+    // 本地池即时联想:0 网络等待,毫秒级出现
+    sugRender(sugLocal(kw), kw, true);
+    // 网络补充:200ms 防抖,直达(绕队列),新输入自动取消旧请求
+    sugTimer = setTimeout(function () {
+      var gen = ++sugGen;
+      sugNet(kw, gen);
+    }, immediate ? 0 : 200);
+  }
+  $("q").addEventListener("input", function () { sugTick(false); });
+  $("q").addEventListener("compositionend", function () { sugTick(true); });
   // iOS 内嵌浏览器(Documents等WKWebView宿主)与旧版PWA会静默吞掉 window.open，
   // 返回空时退到当前页跳转，保证必有反应
   function openExt(u) {
@@ -1503,7 +1537,6 @@
   };
 })();
 </script>
-
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
