@@ -310,6 +310,7 @@
     <div class="dact">
       <button class="play" id="dPlay">立即播放</button>
       <button class="star" id="dFollow">追剧</button>
+      <button class="star" id="dPlat">官方源</button>
     </div>
     <div class="dsec" id="dLineSec">播放线路 <small>按画质排序</small></div>
     <div class="eps" id="dLines"></div>
@@ -1199,6 +1200,11 @@
       $("dFollow").textContent = "已追";
       tip("已追，有更新会提醒");
     }
+  };
+  $("dPlat").onclick = function () {
+    if (!detailRow) return;
+    openExt(JUMPS[0].url + encodeURIComponent(detailRow.vod_name));
+    tip("已到腾讯视频：点开想看的那一集 → 分享拷贝链接 → 回解析页粘贴");
   };
 
   /* ---------- 播放 ---------- */
