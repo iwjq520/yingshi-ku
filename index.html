@@ -163,6 +163,11 @@
   .bsec small { font-size: 11px; color: #5f6570; font-weight: 400; margin-left: 8px; }
   .sback { flex-shrink: 0; width: 42px; min-height: 42px; font-size: 24px; line-height: 1; color: #e8eaee;
     background: #1e2228; border: none; border-radius: 999px; cursor: pointer; }
+  .steps { margin-bottom: 10px; }
+  .step { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 12px; color: #c9ced6; line-height: 1.6; }
+  .step i { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: #ff8f1f; color: #201004;
+    font-style: normal; font-weight: 700; font-size: 11px; text-align: center; line-height: 18px; margin-top: 1px; }
+  .step b { color: #ff8f1f; font-weight: 600; }
   .mtbtn { float: right; padding: 3px 12px; font-size: 11px; border-radius: 999px; border: 1px solid #2f3540;
     background: transparent; color: #7d838c; cursor: pointer; }
   .chip em { font-style: normal; }
@@ -194,6 +199,7 @@
   .dangertool { width: 100%; padding: 11px 14px; font-size: 13px; border-radius: 8px; cursor: pointer;
     border: 1px solid #4a2530; background: transparent; color: #ff8a8a; }
   body[data-view="search"] .sbar { display: none; }
+  body[data-view="parse"] .sbar { display: none; }
 </style>
 </head>
 <body>
@@ -239,19 +245,23 @@
 
     <section class="view" id="v-parse">
       <div class="mineCard">
-        <div class="mt">官方源解析 <small>无拼接广告 · 画质同平台</small></div>
-        <div style="font-size:12px;color:#7d838c;line-height:1.8;margin-bottom:10px">
-          到平台<b style="color:#ff8f1f">点开想看的那一集</b> → 分享拷贝链接 → 回这里点「粘贴」即播。<br>
-          剧集页链接形如 v.qq.com/x/cover/… · iqiyi.com/v_… · youku.com/v_show/… · mgtv.com/b/… · bilibili.com/video/…
+        <div class="mt">三步看官方源 <small>无拼接广告 · 画质同平台</small></div>
+        <div class="steps">
+          <div class="step"><i>1</i><span>下方<b>输入剧名</b>（如：斗破苍穹），点平台按钮直达搜索</span></div>
+          <div class="step"><i>2</i><span>在平台<b>点开想看的那一集</b></span></div>
+          <div class="step"><i>3</i><span>分享 → <b>拷贝链接</b> → 回来点「粘贴」即播</span></div>
         </div>
         <div class="prow">
-          <input id="purl" type="url" inputmode="url" autocapitalize="off" placeholder="粘贴剧集播放页链接">
+          <input id="purl" type="text" inputmode="text" autocapitalize="off" placeholder="粘贴链接 或 输入剧名找官方源">
           <button class="paste" id="paste">粘贴</button>
         </div>
         <div class="perr" id="perr"></div>
         <div class="plines" id="plines"></div>
+        <div style="font-size:11px;color:#565c66;margin-top:8px;line-height:1.7">
+          要复制的链接 = 平台里<b style="color:#ff8f1f">那一集播放页</b>的网址（地址栏形如 v.qq.com/x/cover/… · iqiyi.com/v_… · youku.com/v_show/… · mgtv.com/b/…）。搜索页/首页的网址没用。
+        </div>
       </div>
-      <div class="sec">官方平台直达 <small>跳转平台找官方源 · 拷回链接即播</small></div>
+      <div class="sec">官方平台直达 <small>输入剧名后点按钮 · 自动帮你搜好</small></div>
       <div class="chips" id="jumps"></div>
     </section>
 
@@ -1033,9 +1043,11 @@
       var sp = document.createElement("span");
       sp.className = "chip"; sp.textContent = s.name;
       sp.onclick = function () {
-        var kw = ($("q").value || "").trim().replace(/第?\s*\d{1,4}\s*[集期话]/g, "").trim();
-        if (!kw) { tip("先在上方输入片名"); $("q").focus(); return; }
-        openExt(s.url + encodeURIComponent(kw));
+        var v = ($("purl").value || "").trim();
+        if (/^https?:\/\//i.test(v)) { tip("输入框里已是链接，点上方线路直接解析"); return; }
+        if (!v) { tip("先在上方输入剧名，如：斗破苍穹"); $("purl").focus(); return; }
+        openExt(s.url + encodeURIComponent(v));
+        tip("已到" + s.name + "：点开想看的那一集 → 分享拷贝链接 → 回来点「粘贴」");
       };
       box.appendChild(sp);
     });
@@ -1433,7 +1445,7 @@
   function getPU(strict) {
     var u = ($("purl").value || "").trim();
     if (!/^https?:\/\/\S+\.\S+/i.test(u)) {
-      if (strict) $("perr").textContent = "⚠ 请先粘贴正确的剧集页链接（http(s):// 开头）";
+      if (strict) $("perr").textContent = "⚠ 输入的是剧名？点下方平台按钮去官方平台搜；或粘贴剧集页链接";
       return null;
     }
     var PLAY = [
@@ -1474,7 +1486,7 @@
           if (first && first.onclick) { first.onclick(); }  // 粘贴即播：走臻享线路，校验/提示复用线路按钮
           else tip("已粘贴");
         }
-        else tip("剪贴板里没有链接，请先在平台页面拷贝");
+        else tip("剪贴板里没有链接——去平台点开那一集，分享拷贝链接");
       }).catch(function () { $("purl").focus(); tip("请长按输入框选择「粘贴」"); });
     } else {
       $("purl").focus(); tip("请长按输入框选择「粘贴」");
