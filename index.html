@@ -1551,6 +1551,9 @@
     // 平台分享常为「标题+链接」混合文本：从中抽出链接
     var mU = raw.match(/https?:\/\/[^\s"'<>「」【】（）()]+/i);
     var u = mU ? mU[0] : raw;
+    // B站App分享给的是 b23.tv/BVxxx 短链，解析站不跟随跳转——BV号就在短链里，直接改写成正式链接再送解析
+    var mB = u.match(/^https?:\/\/b23\.tv\/((?:BV|av)[\w]+)/i);
+    if (mB) u = "https://www.bilibili.com/video/" + mB[1];
     if (!/^https?:\/\/\S+\.\S+/i.test(u)) {
       if (strict) $("perr").textContent = "⚠ 输入的是剧名？点下方平台按钮去官方平台搜；或粘贴剧集页链接";
       return null;
