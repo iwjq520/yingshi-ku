@@ -5,144 +5,151 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0b1220">
+<meta name="theme-color" content="#0f1114">
 <title>影视库</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234338ca'/%3E%3Cpath d='M24 18 L48 32 L24 46 Z' fill='%23c4b5fd'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { background: #0b1220; }
+  html, body { background: #0f1114; }
   body {
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    color: #e0f2fe; min-height: 100dvh;
-    padding-bottom: calc(58px + env(safe-area-inset-bottom));
+    color: #f2f3f5; min-height: 100dvh;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
   ::-webkit-scrollbar { display: none; }
 
-  .sbar { position: sticky; top: 0; z-index: 20; padding: calc(env(safe-area-inset-top) + 10px) 14px 10px;
-    background: linear-gradient(180deg, #0b1220 85%, transparent); }
-  .sbar .box { display: flex; align-items: center; gap: 8px; background: #14263e;
-    border: 1px solid #1e3a5f; border-radius: 999px; padding: 9px 16px; cursor: pointer; }
-  .sbar .box span { flex: 1; font-size: 14px; color: #64748b; }
-  .sbar .box i { font-style: normal; color: #38bdf8; font-size: 15px; }
+  .sbar { position: sticky; top: 0; z-index: 20; padding: calc(env(safe-area-inset-top) + 8px) 14px 8px;
+    background: rgba(15,17,20,.96); }
+  .sbar .box { display: flex; align-items: center; gap: 8px; background: #1e2228;
+    border-radius: 999px; padding: 9px 15px; cursor: pointer; }
+  .sbar .box span { flex: 1; font-size: 14px; color: #6a7077; }
+  .sbar .box svg { width: 16px; height: 16px; color: #6a7077; flex-shrink: 0; }
 
-  .view { display: none; padding: 4px 14px 16px; }
+  .row { display: flex; gap: 8px; margin: 10px 2px 4px; }
+  .row input { flex: 1; min-height: 42px; padding: 8px 16px; font-size: 15px; color: #f2f3f5;
+    background: #1e2228; border: 1px solid #2a2f37; border-radius: 999px; outline: none;
+    -webkit-appearance: none; appearance: none; }
+  .row input::-webkit-search-decoration, .row input::-webkit-search-cancel-button { -webkit-appearance: none; }
+  .row .go { padding: 0 18px; font-size: 14px; border-radius: 999px; border: none;
+    background: #ff8f1f; color: #201004; font-weight: 600; cursor: pointer; }
+
+  .view { display: none; padding: 2px 14px 16px; }
   .view.on { display: block; }
-  .status { font-size: 12px; color: #7dd3fc; min-height: 18px; margin: 6px 2px; }
-  .err { color: #fda4af; font-size: 12px; min-height: 16px; margin: 4px 2px; }
-  .sec { font-size: 15px; font-weight: 800; color: #e2e8f0; margin: 14px 2px 10px; }
-  .sec small { font-size: 11px; color: #64748b; font-weight: 400; margin-left: 6px; }
+  .status { font-size: 11px; color: #5f6570; min-height: 16px; margin: 6px 2px; }
+  .err { color: #ff7a7a; font-size: 12px; min-height: 16px; margin: 4px 2px; }
+  .sec { font-size: 15px; font-weight: 600; color: #f2f3f5; margin: 14px 2px 10px; }
+  .sec small { font-size: 11px; color: #5f6570; font-weight: 400; margin-left: 8px; }
 
-  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 9px; align-items: start; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; align-items: start; }
   .pcard { cursor: pointer; }
   .pcard .pw { position: relative; width: 100%; height: 0; padding-top: 142.5%;
-    border-radius: 10px; overflow: hidden; background: #16233b; }
+    border-radius: 6px; overflow: hidden; background: #1a1d23; }
   .pcard .pw img { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
     object-fit: cover; display: block; }
-  .pcard img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .pcard .rq { position: absolute; left: 5px; top: 5px; max-width: 82%; font-size: 10px;
-    padding: 1px 6px; border-radius: 6px; background: rgba(2,8,23,.78); color: #7dd3fc;
+  .pcard .rq { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px;
+    padding: 12px 6px 3px; background: linear-gradient(180deg, transparent, rgba(0,0,0,.78));
+    color: #d6d9de; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .pcard .rq.new { background: linear-gradient(180deg, transparent, rgba(122,20,32,.92)); color: #fff; font-weight: 600; }
+  .pcard .rq.star { background: linear-gradient(180deg, transparent, rgba(180,95,6,.92)); color: #fff; }
+  .pcard .pn { font-size: 13px; color: #e8eaee; margin-top: 7px; line-height: 1.35; height: 18px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 500; }
+  .pcard .pr { font-size: 11px; color: #6a7077; margin-top: 3px; height: 15px;
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .pcard .rq.new { background: rgba(190,18,60,.9); color: #fff; font-weight: 700; }
-  .pcard .rq.star { background: rgba(109,40,217,.85); color: #fff; }
-  .pcard .pn { font-size: 12.5px; color: #e2e8f0; margin-top: 6px; line-height: 1.35; height: 17px;
-    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .pcard .pr { font-size: 10.5px; color: #64748b; margin-top: 2px; height: 15px;
-    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .more { display: block; width: 100%; padding: 11px; margin-top: 12px; text-align: center;
-    font-size: 13px; color: #7dd3fc; background: #0b2942; border: 1px solid #155e75; border-radius: 12px; cursor: pointer; }
+  .more { display: block; width: 100%; padding: 11px; margin-top: 14px; text-align: center;
+    font-size: 13px; color: #9aa0a8; background: #1a1d23; border: none; border-radius: 8px; cursor: pointer; }
 
-  .chips { display: flex; gap: 7px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: none; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: none; }
   .chips::-webkit-scrollbar { display: none; }
-  .chip { flex-shrink: 0; padding: 7px 15px; font-size: 13px; border-radius: 999px;
-    background: #0b2942; border: 1px solid #1e3a5f; color: #94a3b8; cursor: pointer; }
-  .chip.on { background: #075985; border-color: #7dd3fc; color: #fff; font-weight: 700; }
+  .chip { flex-shrink: 0; padding: 7px 14px; font-size: 13px; border-radius: 999px;
+    background: #1a1d23; border: none; color: #9aa0a8; cursor: pointer; }
+  .chip.on { background: #2a2f37; color: #ff8f1f; font-weight: 600; }
 
-  .frow { display: flex; gap: 11px; padding: 10px; border-radius: 14px; background: #0b2942;
-    border: 1px solid #1e3a5f; margin-bottom: 10px; align-items: center; }
-  .frow img { width: 56px; height: 78px; border-radius: 9px; object-fit: cover; background: #16233b; flex-shrink: 0; }
+  .frow { display: flex; gap: 11px; padding: 10px; border-radius: 10px; background: #171a20;
+    margin-bottom: 10px; align-items: center; }
+  .frow img { width: 54px; height: 76px; border-radius: 5px; object-fit: cover; background: #1a1d23; flex-shrink: 0; }
   .frow .fmain { flex: 1; min-width: 0; cursor: pointer; }
-  .frow .fn { font-size: 14px; font-weight: 700; color: #f1f5f9; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .frow .fm { font-size: 11px; color: #94a3b8; margin-top: 4px; }
-  .frow .fm .upd { color: #fde68a; font-weight: 700; }
-  .frow .fx { margin-left: 4px; padding: 6px 10px; border-radius: 8px; border: 1px solid #7f1d1d;
-    background: #450a0a; color: #fca5a5; font-size: 12px; cursor: pointer; flex-shrink: 0; }
-  .empty { color: #64748b; font-size: 13px; line-height: 2; padding: 20px 6px; }
+  .frow .fn { font-size: 14px; font-weight: 500; color: #f2f3f5; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .frow .fm { font-size: 11px; color: #7d838c; margin-top: 4px; }
+  .frow .fm .upd { color: #ff8f1f; font-weight: 500; }
+  .frow .fx { margin-left: 4px; padding: 6px 10px; border-radius: 7px; border: none;
+    background: #232730; color: #7d838c; font-size: 12px; cursor: pointer; flex-shrink: 0; }
+  .empty { color: #5f6570; font-size: 13px; line-height: 2; padding: 24px 6px; text-align: center; }
 
-  .mineCard { background: #0b2942; border: 1px solid #1e3a5f; border-radius: 14px; padding: 14px 12px; margin-bottom: 14px; }
-  .mineCard .mt { font-size: 14px; font-weight: 800; color: #e2e8f0; margin-bottom: 10px; }
+  .mineCard { background: #171a20; border-radius: 12px; padding: 14px 12px; margin-bottom: 12px; }
+  .mineCard .mt { font-size: 14px; font-weight: 600; color: #f2f3f5; margin-bottom: 10px; }
+  .mineCard .mt small { font-size: 11px; color: #5f6570; font-weight: 400; margin-left: 8px; }
   .prow { display: flex; gap: 8px; margin-bottom: 8px; }
-  .prow input { flex: 1; min-height: 44px; padding: 8px 12px; font-size: 14px; color: #f8fafc;
-    background: #0f2233; border: 1px solid #155e75; border-radius: 10px; outline: none; }
-  .prow .paste { min-width: 52px; font-size: 16px; border-radius: 10px; border: 1px solid #155e75;
-    background: #0b2942; color: #7dd3fc; }
-  .perr { color: #fda4af; font-size: 12px; min-height: 16px; margin: 4px 0; }
-  .plines { display: flex; flex-wrap: wrap; gap: 7px; }
-  .pline { padding: 9px 13px; font-size: 13px; border-radius: 10px; background: #0b2942;
-    border: 1px solid #155e75; color: #bae6fd; cursor: pointer; }
-  .pline.star { border-color: #a78bfa; background: linear-gradient(135deg, rgba(109,40,217,.35), rgba(67,56,202,.35)); color: #fff; font-weight: 700; }
-  .plines .note { font-size: 11px; color: #64748b; align-self: center; }
-  .about { font-size: 11px; color: #475569; line-height: 1.9; }
+  .prow input { flex: 1; min-height: 42px; padding: 8px 12px; font-size: 14px; color: #f2f3f5;
+    background: #1e2228; border: none; border-radius: 8px; outline: none; }
+  .prow .paste { min-width: 56px; font-size: 14px; border-radius: 8px; border: none;
+    background: #ff8f1f; color: #201004; font-weight: 600; }
+  .perr { color: #ff7a7a; font-size: 12px; min-height: 16px; margin: 4px 0; }
+  .plines { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pline { padding: 9px 14px; font-size: 13px; border-radius: 8px; background: #232730;
+    border: none; color: #c9ced6; cursor: pointer; }
+  .pline.star { background: transparent; border: 1px solid #ff8f1f; color: #ff8f1f; font-weight: 600; }
+  .plines .note { font-size: 11px; color: #5f6570; align-self: center; }
+  .about { font-size: 11px; color: #565c66; line-height: 1.9; }
 
-  #detail { position: fixed; inset: 0; z-index: 60; background: #0b1220; display: none;
+  #detail { position: fixed; inset: 0; z-index: 60; background: #0f1114; display: none;
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 20px); }
-  #detail .back { font-size: 14px; color: #38bdf8; cursor: pointer; padding: 6px 0; display: inline-block; }
-  .dhead { display: flex; gap: 12px; margin-bottom: 10px; }
-  .dhead img { width: 100px; height: 138px; border-radius: 12px; object-fit: cover; background: #16233b; flex-shrink: 0; }
-  .dhead .dn { font-size: 17px; font-weight: 800; color: #f8fafc; line-height: 1.4; }
-  .dhead .dm { font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.7; }
-  .dact { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
-  .dact button { padding: 10px 14px; font-size: 13.5px; border-radius: 10px; cursor: pointer;
-    border: 1px solid #155e75; background: #0b2942; color: #bae6fd; }
-  .dact button.play { background: linear-gradient(135deg, #be123c, #9f1239); border-color: #fda4af; color: #fff; font-weight: 700; }
-  .dact button.star { background: linear-gradient(135deg, #6d28d9, #4338ca); border-color: #a78bfa; color: #fff; font-weight: 700; }
-  .dact button.on { background: #075985; color: #fff; border-color: #7dd3fc; }
-  .dsec { font-size: 14px; font-weight: 800; color: #e2e8f0; margin: 14px 2px 8px; }
-  .dsec small { font-size: 11px; color: #64748b; font-weight: 400; margin-left: 6px; }
-  .eps { display: flex; flex-wrap: wrap; gap: 7px; }
-  .ep { min-width: 52px; text-align: center; padding: 9px 10px; font-size: 13px; border-radius: 10px;
-    background: #0b2942; border: 1px solid #155e75; color: #bae6fd; cursor: pointer; }
-  .ep.on { background: #075985; color: #fff; border-color: #7dd3fc; }
-  .dnote { font-size: 11px; color: #475569; margin-top: 10px; line-height: 1.7; }
+  #detail .back { font-size: 26px; line-height: 1; color: #e8eaee; cursor: pointer; padding: 2px 8px 8px 0; display: inline-block; }
+  .dhead { display: flex; gap: 13px; margin-bottom: 12px; }
+  .dhead img { width: 104px; height: 144px; border-radius: 8px; object-fit: cover; background: #1a1d23; flex-shrink: 0; }
+  .dhead .dn { font-size: 18px; font-weight: 600; color: #f8f9fb; line-height: 1.45; }
+  .dhead .dm { font-size: 12px; color: #7d838c; margin-top: 7px; line-height: 1.8; }
+  .dact { display: flex; gap: 9px; margin: 14px 0; flex-wrap: wrap; }
+  .dact button { padding: 10px 16px; font-size: 13.5px; border-radius: 8px; cursor: pointer;
+    border: 1px solid #2f3540; background: transparent; color: #e2e5ea; }
+  .dact button.play { background: #ff8f1f; border-color: #ff8f1f; color: #201004; font-weight: 600; padding: 10px 26px; }
+  .dact button.on { border-color: #ff8f1f; color: #ff8f1f; background: transparent; }
+  .dsec { font-size: 14px; font-weight: 600; color: #f2f3f5; margin: 16px 2px 9px; }
+  .dsec small { font-size: 11px; color: #5f6570; font-weight: 400; margin-left: 8px; }
+  .eps { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ep { min-width: 52px; text-align: center; padding: 9px 10px; font-size: 13px; border-radius: 7px;
+    background: #232730; border: none; color: #c9ced6; cursor: pointer; }
+  .ep.on { background: #2a2f37; color: #ff8f1f; font-weight: 600; }
+  .dnote { font-size: 11px; color: #565c66; margin-top: 10px; line-height: 1.7; }
 
   #ply { position: fixed; inset: 0; z-index: 999; background: #000; display: none; flex-direction: column; }
   #ply .bar { display: flex; align-items: center; gap: 8px; padding: calc(env(safe-area-inset-top) + 8px) 10px 8px;
-    background: rgba(2,8,23,.92); }
-  #ply .bar b { flex: 1; font-size: 13px; color: #bae6fd; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  #ply .bar button { padding: 8px 14px; font-size: 13px; border-radius: 8px; border: 1px solid #155e75;
-    background: #0b2942; color: #e0f2fe; }
+    background: #0c0d10; }
+  #ply .bar b { flex: 1; font-size: 13px; font-weight: 500; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #ply .bar button { padding: 7px 13px; font-size: 13px; border-radius: 7px; border: none;
+    background: #1e2228; color: #c9ced6; }
   #ply iframe { flex: 1; width: 100%; border: none; background: #000; }
-  #ply .eplist { max-height: 36vh; overflow-y: auto; padding: 10px; background: rgba(2,8,23,.95);
-    display: flex; flex-wrap: wrap; gap: 7px; }
+  #ply .eplist { max-height: 36vh; overflow-y: auto; padding: 10px; background: rgba(12,13,16,.97);
+    display: flex; flex-wrap: wrap; gap: 8px; }
 
   #tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-    display: flex; background: rgba(10,16,28,.97); border-top: 1px solid #1e3a5f;
+    display: flex; background: #0c0d10; border-top: 1px solid #1f232a;
     padding-bottom: env(safe-area-inset-bottom); }
-  #tabbar .tb { flex: 1; text-align: center; padding: 8px 0 7px; cursor: pointer;
-    color: #64748b; font-size: 10.5px; }
-  #tabbar .tb i { display: block; font-style: normal; font-size: 18px; margin-bottom: 2px; }
-  #tabbar .tb.on { color: #7dd3fc; }
+  #tabbar .tb { flex: 1; text-align: center; padding: 7px 0 6px; cursor: pointer;
+    color: #6a7077; font-size: 10px; }
+  #tabbar .tb svg { display: block; width: 22px; height: 22px; margin: 0 auto 2px; }
+  #tabbar .tb.on { color: #ff8f1f; }
 
   #tip { position: fixed; top: calc(env(safe-area-inset-top) + 8px); left: 50%; transform: translateX(-50%);
-    z-index: 1200; background: rgba(7,24,39,.96); color: #bae6fd; border: 1px solid #0ea5e9;
-    border-radius: 10px; padding: 9px 18px; font-size: 13px; display: none; max-width: 86vw;
-    box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+    z-index: 1200; background: #262a32; color: #f2f3f5; border: none;
+    border-radius: 8px; padding: 9px 16px; font-size: 13px; display: none; max-width: 86vw;
+    box-shadow: 0 6px 20px rgba(0,0,0,.45); }
 </style>
 </head>
 <body>
   <div id="tip"></div>
 
   <div class="sbar">
-    <div class="box" id="searchOpen"><i>🔍</i><span>搜索影视名，可带集数（狂飙 第39集）</span></div>
+    <div class="box" id="searchOpen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>搜索影视剧名</span></div>
   </div>
 
   <main>
     <section class="view on" id="v-home">
       <div class="status" id="st-home"></div>
-      <div class="sec">最近更新 <small>资源站实时片库 · 点海报直接看</small></div>
+      <div class="sec">正在热播 <small>每日更新</small></div>
       <div class="grid" id="homeGrid"></div>
       <div id="homeMore"></div>
     </section>
@@ -156,14 +163,15 @@
 
     <section class="view" id="v-search">
       <div class="row">
-        <input id="q" type="search" enterkeyhint="search" placeholder="影视名，可带集数（庆余年 第3集）">
+        <input id="q" type="search" enterkeyhint="search" placeholder="搜索影视剧名">
         <button class="go" id="go">搜索</button>
       </div>
       <div class="err" id="err"></div>
       <div class="status" id="st-search"></div>
       <div class="chips" id="shist"></div>
+      <div class="sec">官方平台 <small>拷剧集页链接，回「我的」一键播放</small></div>
+      <div class="chips" id="jumps"></div>
       <div class="grid" id="searchGrid"></div>
-      <p class="dnote">卡片角标为探测到的真实画质；⭐为画质最高的资源，点卡片直接看。</p>
     </section>
 
     <section class="view" id="v-follow">
@@ -178,44 +186,44 @@
 
     <section class="view" id="v-mine">
       <div class="mineCard">
-        <div class="mt">⭐ 我的收藏</div>
+        <div class="mt">我的收藏</div>
         <div id="favBox"></div>
       </div>
       <div class="mineCard">
-        <div class="mt">🔗 链接解析 · 官方源高清（臻享优先）</div>
-        <div style="font-size:12px;color:#94a3b8;line-height:1.7;margin-bottom:10px">
-          在腾讯视频/爱奇艺等的<b style="color:#fde68a">网页版</b>找到剧集页 → 分享拷贝链接 →
-          回这里粘贴，点线路即播<b style="color:#fde68a">平台官方流</b>（无采集站拼接广告，画质=官方源）。
+        <div class="mt">官方源解析 <small>无拼接广告 · 画质同平台</small></div>
+        <div style="font-size:12px;color:#7d838c;line-height:1.8;margin-bottom:10px">
+          到平台<b style="color:#ff8f1f">点开想看的那一集</b> → 分享拷贝链接 → 回这里点「粘贴」即播。<br>
+          剧集页链接形如 v.qq.com/x/cover/… · iqiyi.com/v_… · youku.com/v_show/… · mgtv.com/b/… · bilibili.com/video/…
         </div>
         <div class="prow">
-          <input id="purl" type="url" inputmode="url" autocapitalize="off" placeholder="粘贴 https://v.qq.com/... 剧集链接">
-          <button class="paste" id="paste">📋</button>
+          <input id="purl" type="url" inputmode="url" autocapitalize="off" placeholder="粘贴剧集播放页链接">
+          <button class="paste" id="paste">粘贴</button>
         </div>
         <div class="perr" id="perr"></div>
         <div class="plines" id="plines"></div>
       </div>
       <div class="mineCard">
-        <div class="mt">ℹ️ 关于</div>
+        <div class="mt">关于</div>
         <div class="about">
-          数据来自公开资源接口（实时片库）· 画质以片源为准，多为 720P~1080P<br>
-          解析线路播的是平台官方流 · 部分资源直连流含拼接广告，到点拖动跳过<br>
-          接口思路来自开源项目 88lin/video_vip · 仅供学习研究，请支持正版
+          片库来自公开资源接口 · 画质以片源为准<br>
+          解析线路播平台官方流 · 直连源可能含拼接广告，到点拖过即可<br>
+          思路来自开源项目 88lin/video_vip · 仅供学习，请支持正版
         </div>
       </div>
     </section>
   </main>
 
   <nav id="tabbar">
-    <div class="tb on" data-v="home"><i>🏠</i>首页</div>
-    <div class="tb" data-v="cat"><i>🎦</i>分类</div>
-    <div class="tb" data-v="search"><i>🔍</i>搜索</div>
-    <div class="tb" data-v="follow"><i>📌</i>追剧</div>
-    <div class="tb" data-v="hist"><i>🕘</i>历史</div>
-    <div class="tb" data-v="mine"><i>👤</i>我的</div>
+    <div class="tb on" data-v="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9h-5.5v-5.5h-5V20H4z"/></svg>首页</div>
+    <div class="tb" data-v="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>分类</div>
+    <div class="tb" data-v="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>搜索</div>
+    <div class="tb" data-v="follow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 4h10v16l-5-3.8L7 20z"/></svg>追剧</div>
+    <div class="tb" data-v="hist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 1.8"/></svg>历史</div>
+    <div class="tb" data-v="mine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.8"/><path d="M5 20c.8-4 3.6-5.8 7-5.8s6.2 1.8 7 5.8"/></svg>我的</div>
   </nav>
 
   <div id="detail">
-    <span class="back" id="dBack">‹ 返回</span>
+    <span class="back" id="dBack">‹</span>
     <div class="dhead">
       <img id="dPic" alt="">
       <div>
@@ -224,11 +232,11 @@
       </div>
     </div>
     <div class="dact">
-      <button class="play" id="dPlay">▶ 立即播放</button>
-      <button class="star" id="dFollow">＋ 追此剧</button>
-      <button class="star" id="dFav">⭐ 收藏</button>
+      <button class="play" id="dPlay">立即播放</button>
+      <button class="star" id="dFollow">追剧</button>
+      <button class="star" id="dFav">收藏</button>
     </div>
-    <div class="dsec" id="dLineSec">线路 <small>已按真实画质排序</small></div>
+    <div class="dsec" id="dLineSec">播放线路 <small>按画质排序</small></div>
     <div class="eps" id="dLines"></div>
     <div class="dsec" id="dEpSec">选集</div>
     <div class="eps" id="dEps"></div>
@@ -238,8 +246,9 @@
   <div id="ply">
     <div class="bar">
       <button id="pClose">✕</button>
-      <b id="pTitle">播放中</b>
+      <b id="pTitle"></b>
       <button id="pEps">选集</button>
+      <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）">网页</button>
     </div>
     <iframe id="pFrame" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
     <div class="eplist" id="pEplist" style="display:none"></div>
@@ -254,10 +263,41 @@
   var PLAYER = "https://wsyzy.vip/m3u8/?url=";
   var state = {
     view: "home", catId: 31, catPg: 1, homePg: 1, loading: false,
-    lines: [], lineIdx: 0, eps: [], epIdx: -1, epHint: 0, curRow: null,
-    linesCache: {}
+    lines: [], lineIdx: 0, eps: [], epIdx: -1, epHint: 0, curRow: null
   };
-  var plyMode = "ep"; // ep=资源选集播放 | parse=解析线路播放
+  var plyMode = "ep";
+
+  function mergeBySort(a, b) {
+    var seen = {}, out = [];
+    a.concat(b).forEach(function (x) {
+      if (!seen[x.vod_id]) { seen[x.vod_id] = 1; out.push(x); }
+    });
+    return out;
+  }
+  function byHitsDesc(x, y) { return hitsOf(y) - hitsOf(x); }
+  function lineQuality(l) {
+    var s = l.name + " " + l.eps.slice(0, 2).map(function (e) { return e.url; }).join(" ");
+    if (/4k|2160/i.test(s)) return { v: 400, tag: "4K" };
+    if (/bluray|蓝光|2000k/i.test(s)) return { v: 300, tag: "蓝光" };
+    if (/1080|fhd/i.test(s)) return { v: 250, tag: "1080P" };
+    if (/720|(^|[^0-9])hd([^0-9]|$)/i.test(s)) return { v: 200, tag: "720P" };
+    return { v: 150, tag: "" };
+  }
+  function parseLines(playUrl, playFrom) {
+    var froms = String(playFrom || "").split("$$");
+    var groups = String(playUrl || "").split("$$");
+    return groups.map(function (g, i) {
+      var eps = g.split("#").map(function (s) {
+        var k = s.indexOf("$");
+        return k > 0 ? { name: s.slice(0, k), url: s.slice(k + 1) } : { name: "", url: s };
+      }).filter(function (e) { return /^https?:\/\//.test(e.url); });
+      return { name: froms[i] || ("线路" + (i + 1)), eps: eps };
+    }).filter(function (l) { return l.eps.length; });
+  }
+  function playFromRow(row, epIdx0) {
+    if (!state.eps.length) { tip("选集加载中，稍候再试"); return; }
+    playEp(Math.min(Math.max(epIdx0, 0), state.eps.length - 1));
+  }
 
   var tipTimer = null;
   function tip(m) {
@@ -334,28 +374,17 @@
   function setFav(a) { setJ("m_fav", a); }
   function getProg() { return getJ("m_prog", "{}"); }
   function setProg(o) { setJ("m_prog", o); }
+  function getWH() { return getJ("m_whist", "[]"); }
+  function setWH(a) { setJ("m_whist", a); }
+  function hitsOf(row) {
+    return Number(row.vod_hits_day) || Number(row.vod_hits_week) || Number(row.vod_hits) || 0;
+  }
   function fmtHot(n) {
     n = Number(n) || 0;
     if (n >= 100000000) return (n / 100000000).toFixed(1) + "亿";
     if (n >= 10000) return (n / 10000).toFixed(1) + "万";
     return String(n);
   }
-  function hitsOf(row) {
-    return Number(row.vod_hits_day) || Number(row.vod_hits_week) || Number(row.vod_hits) || 0;
-  }
-  function hitsTag(row) {
-    var v = hitsOf(row);
-    return v > 0 ? "🔥" + fmtHot(v) : "";
-  }
-  function mergeBySort(a, b) {
-    var seen = {}, out = [];
-    a.concat(b).forEach(function (x) {
-      if (!seen[x.vod_id]) { seen[x.vod_id] = 1; out.push(x); }
-    });
-    return out;
-  }
-  function byHitsDesc(x, y) { return hitsOf(y) - hitsOf(x); }
-  function getWH() { return getJ("m_whist", "[]"); }
 
   /* ---------- 页签 ---------- */
   function switchView(v) {
@@ -370,6 +399,7 @@
     if (v === "hist") renderHist();
     if (v === "mine") renderFav();
     if (v === "search") { renderSHist(); setTimeout(function () { try { $("q").focus(); } catch (e) {} }, 100); }
+    if (v === "search") renderJumps();
     if (v === "home" && !$("homeGrid").children.length) loadHome(false);
     if (v === "cat" && !$("catGrid").children.length) loadCat(false);
     window.scrollTo(0, 0);
@@ -379,12 +409,12 @@
   });
   $("searchOpen").onclick = function () { switchView("search"); $("q").focus(); };
 
-  /* ---------- 首页 ---------- */
+  /* ---------- 首页（多页拉取 + 热度排行） ---------- */
   var homeLoading = false, homePool = [];
   function loadHome(more) {
-    if (homeLoading) return;
-    homeLoading = true;
-    status("home", more ? "加载更多…" : "正在拉取最近更新并按全网热度排行…");
+    if (state.loading) return;
+    state.loading = true;
+    status("home", more ? "加载更多…" : "加载中…");
     var pages = more ? [state.homePg] : [1, 2, 3];
     var jobs = pages.map(function (pg) {
       return api(API + "?ac=videolist&h=24&wd=%20&pg=" + pg).catch(function () { return { list: [] }; });
@@ -397,8 +427,7 @@
       homePool = mergeBySort(homePool, fresh).sort(byHitsDesc);
       state.homePg = pages[pages.length - 1];
       renderHomeGrid();
-      var hot1 = homePool[0] ? hitsOf(homePool[0]) : 0;
-      status("home", "已按全网播放热度排行 · 共 " + homePool.length + " 部" + (hot1 > 0 ? " · 最高热度 " + fmtHot(hot1) : ""));
+      status("home", "共 " + homePool.length + " 部");
     }).catch(function (e) { status("home", "加载失败：" + e.message); })
       .finally(function () { state.loading = false; });
   }
@@ -408,19 +437,19 @@
       var c = pcard(row, function () { openDetail(row); });
       var pr = c.querySelector(".pr");
       var hv = hitsOf(row);
-      if (hv > 0) pr.textContent += " · 🔥" + fmtHot(hv);
+      if (hv > 0) pr.textContent += " · 热" + fmtHot(hv);
       grid.appendChild(c);
     });
   }
 
-  /* ---------- 分类 ---------- */
-  var catLoading = false;
+  /* ---------- 分类（热度排行） ---------- */
   var CATS = [
     { id: 26, name: "剧情片" }, { id: 21, name: "动作片" }, { id: 22, name: "喜剧片" },
     { id: 24, name: "科幻片" }, { id: 25, name: "爱情片" }, { id: 31, name: "国产剧" },
     { id: 33, name: "香港剧" }, { id: 34, name: "韩国剧" }, { id: 39, name: "日韩动漫" },
     { id: 40, name: "国产动漫" }, { id: 46, name: "大陆综艺" }, { id: 28, name: "纪录片" }
   ];
+  var catLoading = false, catPool = [];
   function renderCatChips() {
     var box = $("catChips"); box.innerHTML = "";
     CATS.forEach(function (c) {
@@ -428,14 +457,13 @@
       s.className = "chip" + (c.id === state.catId ? " on" : "");
       s.textContent = c.name;
       s.onclick = function () {
-        state.catId = c.id; state.catPg = 1;
+        state.catId = c.id; state.catPg = 1; state.catPool = [];
         $("catGrid").innerHTML = ""; $("catMore").innerHTML = "";
         renderCatChips(); loadCat(false);
       };
       box.appendChild(s);
     });
   }
-  var catPool = [];
   function loadCat(more) {
     if (catLoading) return;
     catLoading = true;
@@ -452,22 +480,18 @@
       catPool = mergeBySort(catPool, fresh).sort(byHitsDesc);
       state.catPg = pages[pages.length - 1];
       renderCatGrid();
-      status("cat", "已按热度排行 · 共 " + catPool.length + " 部");
+      status("cat", "共 " + catPool.length + " 部");
     }).catch(function (e) { status("cat", "加载失败：" + e.message); })
       .finally(function () { catLoading = false; });
   }
   function renderCatGrid() {
     var grid = $("catGrid"); grid.innerHTML = "";
     catPool.forEach(function (row) {
-      var c = pcard(row, function () { openDetail(row); });
-      var pr = c.querySelector(".pr");
-      var hv = hitsOf(row);
-      if (hv > 0) pr.textContent += " · 🔥" + fmtHot(hv);
-      grid.appendChild(c);
+      grid.appendChild(pcard(row, function () { openDetail(row); }));
     });
   }
 
-  /* ---------- 搜索 ---------- */
+  /* ---------- 搜索（画质探测+⭐推荐+历史） ---------- */
   var searching = false;
   function doSearch() {
     var raw = ($("q").value || "").trim();
@@ -475,7 +499,7 @@
     if (searching) return;
     searching = true; $("go").disabled = true; $("err").textContent = "";
     status("search", "搜索「" + raw + "」…");
-    $("searchGrid").innerHTML = "";
+    $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
     state.epHint = parseHint(raw);
     var title = raw.replace(/第?\s*\d{1,4}\s*[集期话]/g, "").replace(/^[，,。.\s]+|[，,。.\s]+$/g, "").trim() || raw;
     try {
@@ -492,16 +516,15 @@
         return sb - sa;
       });
       state.searchList = list;
-      status("search", "搜到 " + list.length + " 个结果，正在探测画质…");
-      var grid = $("searchGrid");
-      grid.innerHTML = "";
+      status("search", "搜到 " + list.length + " 个结果，探测画质中…");
+      var grid = $("searchGrid"); grid.innerHTML = "";
       list.forEach(function (row) {
         var c = pcard(row, function () { openDetail(row); });
         grid.appendChild(c);
       });
       var jobs = list.slice(0, 8).map(function (row, k) {
         var e0 = epsOf(row)[0];
-        if (!e0) return Promise.resolve({ idx: k, w: 0 });
+        if (!e0) return Promise.resolve({ row: row, w: 0 });
         return probeRes(e0.url).then(function (r) {
           var card = grid.children[k];
           if (card && r.tag) {
@@ -509,8 +532,8 @@
             q.textContent = r.tag; q.style.display = "block";
             q.className = "rq" + (r.w >= 1080 ? "" : " new");
           }
-          return { idx: k, w: r.w, tag: r.tag };
-        }).catch(function () { return { idx: k, w: 0, tag: "" }; });
+          return { row: row, w: r.w, tag: r.tag };
+        }).catch(function () { return { row: row, w: 0, tag: "" }; });
       });
       Promise.all(jobs).then(function (rs) {
         var best = null;
@@ -523,13 +546,41 @@
             star.className = "rq star";
           }
         }
-        status("search", "画质探测完成：⭐为最高清资源，点卡片即看");
+        status("search", "⭐ 为最高清资源");
       });
     }).catch(function (e) { status("search", "搜索失败：" + e.message); })
       .finally(function () { searching = false; $("go").disabled = false; });
   }
   $("go").onclick = doSearch;
   $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
+  // iOS 内嵌浏览器(Documents等WKWebView宿主)与旧版PWA会静默吞掉 window.open，
+  // 返回空时退到当前页跳转，保证必有反应
+  function openExt(u) {
+    var w = null;
+    try { w = window.open(u, "_blank"); } catch (e) {}
+    if (!w) location.href = u;
+  }
+  var JUMPS = [
+    { name: "腾讯视频", url: "https://v.qq.com/x/search/?q=" },
+    { name: "爱奇艺", url: "https://so.iqiyi.com/so/q_" },
+    { name: "优酷", url: "https://so.youku.com/search_video/q_" },
+    { name: "芒果TV", url: "https://www.mgtv.com/h/search/?q=" },
+    { name: "B站", url: "https://search.bilibili.com/all?keyword=" }
+  ];
+  function renderJumps() {
+    var box = $("jumps"); if (!box) return;
+    box.innerHTML = "";
+    JUMPS.forEach(function (s) {
+      var sp = document.createElement("span");
+      sp.className = "chip"; sp.textContent = s.name;
+      sp.onclick = function () {
+        var kw = ($("q").value || "").trim().replace(/第?\s*\d{1,4}\s*[集期话]/g, "").trim();
+        if (!kw) { tip("先在上方输入片名"); $("q").focus(); return; }
+        openExt(s.url + encodeURIComponent(kw));
+      };
+      box.appendChild(sp);
+    });
+  }
   function renderSHist() {
     var box = $("shist"); if (!box) return;
     box.innerHTML = "";
@@ -553,10 +604,9 @@
     $("dName").textContent = row.vod_name;
     $("dMeta").textContent = [row.type_name, row.vod_year, row.vod_remarks].filter(Boolean).join(" · ");
     var followed0 = getFollow().some(function (f) { return String(f.id) === String(row.vod_id); });
-    $("dFollow").textContent = followed0 ? "✓ 已追此剧" : "＋ 追此剧";
+    $("dFollow").textContent = followed0 ? "已追" : "追剧";
     $("dFollow").className = followed0 ? "star on" : "star";
-    var faved0 = getFav().some(function (f) { return String(f.id) === String(row.vod_id); });
-    $("dFav").textContent = faved0 ? "★ 已收藏" : "⭐ 收藏";
+    setDFavBtn(getFav().some(function (f) { return String(f.id) === String(row.vod_id); }));
     $("dLines").innerHTML = ""; $("dEps").innerHTML = "";
     $("dLineSec").style.display = "none"; $("dEpSec").style.display = "none";
     $("dNote").textContent = "";
@@ -579,49 +629,39 @@
         var k = s.indexOf("$");
         return k > 0 ? { name: s.slice(0, k), url: s.slice(k + 1) } : { name: "", url: s };
       }).filter(function (e) { return /^https?:\/\//.test(e.url); });
-      return { name: froms[i] || ("线路" + (i + 1)), eps: eps, resW: 0, resTag: "" };
+      return { name: froms[i] || ("线路" + (i + 1)), eps: eps };
     }).filter(function (l) { return l.eps.length; });
     if (!state.lines.length) { $("dNote").textContent = "没有可用播放地址"; return; }
-    state.lineIdx = 0;
-    // 线路真实分辨率探测排序
+    state.lines.forEach(function (l) { l.q = lineQuality(l); });
+    state.lines.sort(function (a, b) { return b.q.v - a.q.v; });
+    state.lineIdx = 0; state.epIdx = -1;
+    renderDetailLines();
+    renderDetailEps();
     Promise.all(state.lines.map(function (l) {
       return probeRes(l.eps[0].url).then(function (r) { l.resW = r.w || 0; l.resTag = r.tag || ""; });
     })).then(function () {
       state.lines.sort(function (a, b) { return (b.resW || 0) - (a.resW || 0); });
-      state.lineIdx = 0;
-      renderDetailLines();
-      state.epIdx = -1;
-      state.eps = state.lines[state.lineIdx].eps;
-      renderDetailEps(0);
-      var prog = getProg()[String(row.vod_id)];
-      var startIdx = 0;
-      if (jumpEp) startIdx = Math.min(jumpEp, state.eps.length - 1);
-      else if (prog && prog.ep) {
-        var f = state.eps.findIndex(function (e) {
-          var m = (e.name || "").match(/\d{1,4}/);
-          return m && parseInt(m[0], 10) === prog.ep;
-        });
-        if (f >= 0) startIdx = f;
-      }
-      if (state.eps.length) playEp(startIdx);
+      renderDetailLines(); renderDetailEps();
     });
   }
   function renderDetailLines() {
     var g = $("dLines"); g.innerHTML = "";
+    g.style.display = state.lines.length > 1 ? "flex" : "none";
     $("dLineSec").style.display = state.lines.length > 1 ? "block" : "none";
     state.lines.forEach(function (l, i) {
       var b = document.createElement("span");
       b.className = "ep" + (i === state.lineIdx ? " on" : "");
-      b.textContent = l.name + (l.resTag ? "（" + l.resTag + "）" : "") + "（" + l.eps.length + "集）";
+      b.textContent = l.name + (l.q.tag ? "（" + l.q.tag + "）" : "") + "（" + l.eps.length + "集）";
       b.onclick = function () {
         state.lineIdx = i; state.epIdx = -1; state.eps = state.lines[i].eps;
-        renderDetailLines(); renderDetailEps(0);
+        renderDetailLines(); renderDetailEps();
       };
       g.appendChild(b);
     });
   }
-  function renderDetailEps(activeIdx) {
+  function renderDetailEps() {
     var eg = $("dEps"); eg.innerHTML = "";
+    state.eps = state.lines[state.lineIdx].eps;
     state.eps.forEach(function (ep, i) {
       var b = document.createElement("span");
       b.className = "ep" + (i === state.epIdx ? " on" : "");
@@ -632,11 +672,6 @@
     $("dEpSec").style.display = "block";
   }
   $("dBack").onclick = function () { $("detail").style.display = "none"; };
-
-  function playFromRow(row, epIdx0) {
-    if (!state.eps.length) { tip("选集加载中，稍候再试"); return; }
-    playEp(Math.min(Math.max(epIdx0, 0), state.eps.length - 1));
-  }
   $("dPlay").onclick = function () { playEp(state.epIdx >= 0 ? state.epIdx : 0); };
   $("dFollow").onclick = function () {
     if (!detailRow) return;
@@ -644,28 +679,33 @@
     var i = list.findIndex(function (f) { return String(f.id) === String(detailRow.vod_id); });
     if (i >= 0) {
       setFollow(list.filter(function (f) { return String(f.id) !== String(detailRow.vod_id); }));
-      $("dFollow").textContent = "＋ 追此剧"; $("dFollow").className = "star";
+      $("dFollow").textContent = "追剧";
       tip("已取消追剧");
     } else {
-      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", remarks: detailRow.vod_remarks || "", eps: state.eps.length || epsOf(detailRow).length });
+      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", remarks: detailRow.vod_remarks || "", eps: epsOf(detailRow).length });
       setFollow(list);
-      $("dFollow").textContent = "✓ 已追此剧"; $("dFollow").className = "star on";
-      tip("已加入追剧，打开「追剧」自动检查更新");
+      $("dFollow").textContent = "已追";
+      tip("已追，有更新会提醒");
     }
   };
+
+  function setDFavBtn(on) {
+    $("dFav").textContent = on ? "已收藏" : "收藏";
+    $("dFav").className = on ? "star on" : "star";
+  }
   $("dFav").onclick = function () {
     if (!detailRow) return;
     var list = getFav();
     var i = list.findIndex(function (f) { return String(f.id) === String(detailRow.vod_id); });
     if (i >= 0) {
       setFav(list.filter(function (f) { return String(f.id) !== String(detailRow.vod_id); }));
-      $("dFav").textContent = "⭐ 收藏";
+      setDFavBtn(false);
       tip("已取消收藏");
     } else {
-      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", remarks: detailRow.vod_remarks || "", eps: epsOf(detailRow).length });
+      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", remarks: detailRow.vod_remarks || "" });
       setFav(list);
-      $("dFav").textContent = "★ 已收藏";
-      tip("已加入我的收藏");
+      setDFavBtn(true);
+      tip("已收藏");
     }
   };
 
@@ -678,32 +718,20 @@
       var prog = getProg();
       prog[String(state.curRow.vod_id)] = { ep: i + 1, name: ep.name || ("第" + (i + 1) + "集"), t: Date.now() };
       setProg(prog);
+      var wh = getWH().filter(function (x) { return x.id !== String(state.curRow.vod_id); });
+      wh.unshift({
+        id: String(state.curRow.vod_id), name: state.curRow.vod_name, pic: state.curRow.vod_pic || "",
+        epIdx: i, epName: ep.name || ("第" + (i + 1) + "集"), epsTotal: state.eps.length, t: Date.now()
+      });
+      setWH(wh.slice(0, 50));
     }
-    var inWh = getWH().some(function (x) { return x.id === String(state.curRow ? state.curRow.vod_id : "") && x.type !== "parse"; });
+    state.pcur = PLAYER + encodeURIComponent(ep.url);
     $("ply").style.display = "flex";
     $("pFrame").src = PLAYER + encodeURIComponent(ep.url);
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || ("第" + (i + 1) + "集"));
     renderPEplist();
-    // 写入观看历史
-    if (state.curRow) {
-      var wh = getWH();
-      wh = wh.filter(function (x) { return x.id !== String(state.curRow.vod_id); });
-      wh.unshift({
-        id: String(state.curRow.vod_id), type: "ep", name: state.curRow.vod_name,
-        pic: state.curRow.vod_pic || "", epIdx: i, epName: ep.name || ("第" + (i + 1) + "集"),
-        epsTotal: state.eps.length, row: state.curRow, t: Date.now()
-      });
-      setJ("m_whist", wh.slice(0, 50));
-    }
     if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
   }
-  function getWH2() { try { return JSON.parse(localStorage.getItem("m_whist") || "[]"); } catch (e) { return []; } }
-  function setWH2(a) { try { localStorage.setItem("m_whist", JSON.stringify(a)); } catch (e) {} }
-  function updateNet() {}
-  function updateWHTime() {}
-  function updateRes() {}
-  function updateNet2() {}
-
   function renderPEplist() {
     var box = $("pEplist"); box.innerHTML = "";
     state.eps.forEach(function (ep, i) {
@@ -714,6 +742,12 @@
       box.appendChild(b);
     });
   }
+  $("pWeb").onclick = function () {
+    var u = state.pcur || ($("pFrame").src && $("pFrame").src.indexOf("about:blank") < 0 ? $("pFrame").src : "");
+    if (!u) { tip("请先播放某一集"); return; }
+    openExt(u);
+    tip("已在浏览器打开");
+  };
   $("pClose").onclick = function () {
     $("ply").style.display = "none";
     $("pFrame").src = "about:blank";
@@ -724,16 +758,75 @@
     b.style.display = b.style.display === "flex" ? "none" : "flex";
   };
 
+  /* ---------- 历史 ---------- */
+  function renderHist() {
+    var list = getWH();
+    var box = $("histList");
+    status("hist", "");
+    if (!list.length) {
+      box.innerHTML = '<div class="empty">还没有观看记录</div>';
+      return;
+    }
+    box.innerHTML = "";
+    list.forEach(function (h) {
+      var d = document.createElement("div");
+      d.className = "frow";
+      d.innerHTML = '<img alt=""><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
+      var img = d.querySelector("img");
+      if (h.pic) img.src = h.pic;
+      d.querySelector(".fn").textContent = h.name;
+      d.querySelector(".fm").textContent = h.epName ? "看到 " + h.epName : "";
+      d.querySelector(".fmain").onclick = function () {
+        openDetail({ vod_id: h.id, vod_name: h.name, vod_pic: h.pic }, h.epIdx || 0);
+      };
+      d.querySelector(".fx").onclick = function (ev) {
+        ev.stopPropagation();
+        setWH(getWH().filter(function (x) { return String(x.id) !== String(h.id); }));
+        renderHist();
+      };
+      box.appendChild(d);
+    });
+  }
+
+  /* ---------- 收藏 ---------- */
+  function renderFav() {
+    var list = getFav();
+    var box = $("favBox");
+    if (!list.length) {
+      box.innerHTML = '<div class="empty">还没有收藏。点开影片 → 点「收藏」</div>';
+      return;
+    }
+    box.innerHTML = "";
+    list.forEach(function (f) {
+      var d = document.createElement("div");
+      d.className = "frow";
+      d.innerHTML = '<img alt=""><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
+      var img = d.querySelector("img");
+      if (f.pic) img.src = f.pic;
+      d.querySelector(".fn").textContent = f.name;
+      d.querySelector(".fm").textContent = f.remarks || "";
+      d.querySelector(".fmain").onclick = function () {
+        openDetail({ vod_id: f.id, vod_name: f.name, vod_pic: f.pic, vod_remarks: f.remarks || "" }, 0);
+      };
+      d.querySelector(".fx").onclick = function (ev) {
+        ev.stopPropagation();
+        setFav(getFav().filter(function (x) { return String(x.id) !== String(f.id); }));
+        renderFav();
+      };
+      box.appendChild(d);
+    });
+  }
+
   /* ---------- 追剧 ---------- */
   function renderFollow() {
     var list = getFollow();
     var box = $("followList");
     if (!list.length) {
-      box.innerHTML = '<div class="empty">还没有追剧。在首页/分类点开影片 → 点「＋ 追此剧」，<br>之后打开这里就会自动检查有没有更新。</div>';
+      box.innerHTML = '<div class="empty">还没有追剧。点开影片 → 点「追剧」，<br>有更新会在这里提醒你</div>';
       status("follow", "");
       return;
     }
-    status("follow", "正在检查 " + list.length + " 部追剧的更新…");
+    status("follow", "检查更新中…");
     box.innerHTML = "";
     var jobs = list.map(function (f) {
       return api(API + "?ac=videolist&wd=%20&ids=" + f.id).then(function (j) {
@@ -743,7 +836,7 @@
       }).catch(function () { return { f: f, now: f.eps || 0 }; });
     });
     Promise.all(jobs).then(function (rs) {
-      status("follow", "检查完成");
+      status("follow", "");
       rs.forEach(function (r) {
         var upd = r.now > (r.f.eps || 0);
         var d = document.createElement("div");
@@ -772,54 +865,63 @@
     });
   }
 
-  /* ---------- 收藏（我的） ---------- */
-  function renderFav() {
-    var list = getFav();
-    var box = $("favBox");
-    if (!list.length) {
-      box.innerHTML = '<div class="empty">还没有收藏。点开影片详情 → 点「⭐ 收藏」即可在这里找到。</div>';
-      return;
-    }
-    box.innerHTML = "";
-    var grid = document.createElement("div");
-    grid.className = "grid";
-    list.forEach(function (row) {
-      grid.appendChild(pcard(row, function () { openDetail(row); }));
-    });
-    box.appendChild(grid);
-  }
-
   /* ---------- 解析（我的） ---------- */
   var PSOURCES = [
-    { name: "臻享解析", url: "https://aibox.eu.org/?url=", star: true },
-    { name: "七哥解析", url: "https://jx.202617.xyz/tv.php?url=" },
-    { name: "TXNQ解析", url: "https://bfq.txnp.cn/player?url=" },
-    { name: "冰豆解析", url: "https://bd.jx.cn/?url=" },
-    { name: "麒麟解析", url: "https://free.maccms.xyz/?url=" }
+    { name: "臻享", url: "https://aibox.eu.org/?url=", star: true },
+    { name: "七哥", url: "https://jx.202617.xyz/tv.php?url=" },
+    { name: "TXNQ", url: "https://bfq.txnp.cn/player?url=" },
+    { name: "冰豆", url: "https://bd.jx.cn/?url=" },
+    { name: "麒麟", url: "https://free.maccms.xyz/?url=" }
   ];
   (function () {
     var box = $("plines");
     PSOURCES.forEach(function (s) {
       var b = document.createElement("span");
       b.className = "pline" + (s.star ? " star" : "");
-      b.textContent = s.name + (s.star ? " ⭐首选" : "");
+      b.textContent = s.name;
       b.onclick = function () {
         var u = getPU(true);
         if (!u) return;
-        openParsePlayer(s.name + " · 官方源播放", s.url + u);
+        window.plyMode = "parse";
+        $("ply").style.display = "flex";
+        $("pFrame").src = s.url + u;
+        $("pTitle").textContent = s.name + " · 官方源播放";
+        $("pEplist").innerHTML = "";
+        if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
       };
       box.appendChild(b);
     });
-    var note = document.createElement("span");
-    note.className = "note";
-    note.textContent = "备用：LX/789 需新页面打开，暂未收录";
-    box.appendChild(note);
   })();
   function getPU(strict) {
     var u = ($("purl").value || "").trim();
     if (!/^https?:\/\/\S+\.\S+/i.test(u)) {
       if (strict) $("perr").textContent = "⚠ 请先粘贴正确的剧集页链接（http(s):// 开头）";
       return null;
+    }
+    var PLAY = [
+      { re: /v\.qq\.com\/x\/(cover|page)\//i, name: "腾讯视频" },
+      { re: /iqiyi\.com\/[vw]_/i, name: "爱奇艺" },
+      { re: /youku\.com\/v_show\/id_/i, name: "优酷" },
+      { re: /mgtv\.com\/b\//i, name: "芒果TV" },
+      { re: /bilibili\.com\/video\//i, name: "B站" }
+    ];
+    var SEARCHY = [
+      { re: /v\.qq\.com\/x\/search\//i, name: "腾讯视频" },
+      { re: /(so|search)\.iqiyi\.com|iqiyi\.com\/search/i, name: "爱奇艺" },
+      { re: /(so|search)\.youku\.com/i, name: "优酷" },
+      { re: /mgtv\.com\/(h\/search|s\b)/i, name: "芒果TV" },
+      { re: /search\.bilibili\.com/i, name: "B站" }
+    ];
+    var i, known = false;
+    for (i = 0; i < PLAY.length; i++) if (PLAY[i].re.test(u)) { known = true; break; }
+    if (!known) {
+      var sn = "";
+      for (i = 0; i < SEARCHY.length; i++) if (SEARCHY[i].re.test(u)) { sn = SEARCHY[i].name; break; }
+      if (sn) {
+        if (strict) $("perr").textContent = "⚠ 这是" + sn + "的搜索页链接，解析不了。请回到平台点开想看的那一集，再分享拷贝剧集播放页的链接";
+        return null;
+      }
+      // 其余链接（含其他平台/短链）不拦截，交由解析线路处理
     }
     $("perr").textContent = "";
     try { localStorage.setItem("m_purl", u); } catch (e) {}
@@ -828,7 +930,12 @@
   $("paste").onclick = function () {
     if (navigator.clipboard && navigator.clipboard.readText) {
       navigator.clipboard.readText().then(function (t) {
-        if (t && /^https?:\/\//i.test(t.trim())) { $("purl").value = t.trim(); tip("已粘贴，点线路开始播放"); }
+        if (t && /^https?:\/\//.test(t.trim())) {
+          $("purl").value = t.trim();
+          var first = $("plines").children[0];
+          if (first && first.onclick) { first.onclick(); }  // 粘贴即播：走臻享线路，校验/提示复用线路按钮
+          else tip("已粘贴");
+        }
         else tip("剪贴板里没有链接，请先在平台页面拷贝");
       }).catch(function () { $("purl").focus(); tip("请长按输入框选择「粘贴」"); });
     } else {
