@@ -990,7 +990,10 @@
     }, immediate ? 0 : 200);
   }
   $("q").addEventListener("input", function () { sugTick(false); });
-  $("q").addEventListener("compositionend", function () { sugTick(true); });
+  // iOS 选字瞬间 compositionend 先于输入框值更新触发,延迟一拍再读取
+  $("q").addEventListener("compositionend", function () { setTimeout(function () { sugTick(true); }, 0); });
+  // keyup 双保险:选字/删除后必然触发,彻底避免联想停在「正在搜索全网…」
+  $("q").addEventListener("keyup", function () { sugTick(false); });
   // iOS 内嵌浏览器(Documents等WKWebView宿主)与旧版PWA会静默吞掉 window.open，
   // 返回空时退到当前页跳转，保证必有反应
   function openExt(u) {
