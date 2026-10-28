@@ -168,6 +168,20 @@
   .chip em { font-style: normal; }
   .chip b { margin-left: 7px; color: #6a7077; font-weight: 400; }
   .chip.schipclr { color: #ff8a8a; }
+  .sug { display: flex; gap: 10px; padding: 9px 4px; align-items: center; cursor: pointer; border-bottom: 1px solid #1c2027; }
+  .sug img { width: 46px; height: 62px; border-radius: 4px; object-fit: cover; background: #1a1d23; flex-shrink: 0; }
+  .sug .sn { font-size: 13.5px; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .sug .sn b { color: #ff8f1f; font-weight: 600; }
+  .sug .badge { display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px; border-radius: 4px;
+    background: #232730; color: #9aa0a8; vertical-align: 1px; }
+  .sug .sm { font-size: 11px; color: #6a7077; margin-top: 3px; }
+  .rank { display: flex; gap: 10px; padding: 8px 2px; align-items: center; cursor: pointer; border-bottom: 1px solid #171a20; }
+  .rank img { width: 60px; height: 82px; border-radius: 5px; object-fit: cover; background: #1a1d23; flex-shrink: 0; }
+  .rank .no { width: 20px; text-align: center; font-size: 16px; font-weight: 700; font-style: italic; color: #5f6570; flex-shrink: 0; }
+  .rank .no1 { color: #ff4d4f; } .rank .no2 { color: #ff8f1f; } .rank .no3 { color: #ffb02e; }
+  .rank .rn { font-size: 13.5px; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .rank .rn b { color: #ff8f1f; }
+  .rank .rm { font-size: 11px; color: #6a7077; margin-top: 3px; }
   .morebtn { display: block; width: 100%; margin-top: 8px; padding: 9px; font-size: 12px;
     border-radius: 8px; border: none; background: #232730; color: #9aa0a8; cursor: pointer; }
   .morebtn:hover { color: #f2f3f5; }
@@ -205,9 +219,10 @@
       </div>
       <div class="err" id="err"></div>
       <div class="status" id="st-search"></div>
+      <div id="sugBox" style="display:none"></div>
       <div class="chips" id="shist"></div>
       <div class="grid" id="searchGrid"></div>
-      <div class="sec" id="hotSec" style="display:none">今日热播 <small>全网播放热度 · 国产优先</small></div>
+      <div class="sec" id="hotSec" style="display:none">热播榜 <small>全网播放热度 · TOP10</small></div>
       <div class="grid" id="hotGrid"></div>
     </section>
 
@@ -674,12 +689,21 @@
     var sec = $("hotSec"), grid = $("hotGrid");
     if (!homePool.length) { loadHome(false); return; }
     sec.style.display = "block";
+    grid.className = "";
     grid.innerHTML = "";
-    homePool.slice().sort(function (a, b) { return cnScore(b) - cnScore(a); }).slice(0, 12).forEach(function (row) {
-      var c = pcard(row, function () { openDetail(row); });
+    var hot = homePool.slice().sort(byHitsDesc).slice(0, 10);
+    hot.forEach(function (row, i) {
+      var d = document.createElement("div");
+      d.className = "rank";
+      var noCls = "no" + (i + 1);
+      d.innerHTML = '<span class="no ' + noCls + '">' + (i + 1) + '</span><img loading="lazy" decoding="async" alt="">' +
+        '<div style="flex:1;min-width:0"><div class="rn"></div><div class="rm"></div></div>';
+      if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
       var hv = hitsOf(row);
-      if (hv > 0) c.querySelector(".pr").textContent += " · 热" + fmtHot(hv);
-      grid.appendChild(c);
+      d.querySelector(".rn").textContent = row.vod_name;
+      d.querySelector(".rm").textContent = [[row.type_name, row.vod_year].filter(Boolean).join(" · "), hv ? "热" + fmtHot(hv) : ""].filter(Boolean).join(" · ");
+      d.onclick = function () { openDetail(row); };
+      grid.appendChild(d);
     });
   }
   function prefetchDetails(rows) {
@@ -792,7 +816,7 @@
     status("search", "搜索「" + raw + "」…");
     $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
     $("hotSec").style.display = "none"; $("hotGrid").innerHTML = "";
-    $("shist").innerHTML = "";
+    $("shist").innerHTML = ""; $("sugBox").style.display = "none";
     state.epHint = parseHint(raw);
     var title = raw.replace(/第?\s*\d{1,4}\s*[集期话]/g, "").replace(/^[，,。.\s]+|[，,。.\s]+$/g, "").trim() || raw;
     try {
@@ -851,6 +875,48 @@
   }
   $("go").onclick = doSearch;
   $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
+  /* ---------- 搜索实时联想(打字即搜,腾讯式) ---------- */
+  var sugTimer = null, sugGen = 0, composing = false;
+  function sugTick() {
+    clearTimeout(sugTimer);
+    sugTimer = setTimeout(function () {
+      var kw = ($("q").value || "").trim();
+      if (!kw) { $("sugBox").style.display = "none"; $("sugBox").innerHTML = ""; return; }
+      var gen = ++sugGen;
+      api(API + "?ac=videolist&wd=" + encodeURIComponent(kw)).then(function (j) {
+        if (gen !== sugGen || state.view !== "search") return;
+        var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; }).slice(0, 8);
+        if (!list.length) { $("sugBox").style.display = "none"; return; }
+        var box = $("sugBox");
+        box.innerHTML = "";
+        list.forEach(function (row) {
+          var d = document.createElement("div");
+          d.className = "sug";
+          d.innerHTML = '<img loading="lazy" alt=""><div style="flex:1;min-width:0"><div class="sn"></div><div class="sm"></div></div>';
+          if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
+          var sn = d.querySelector(".sn");
+          var idx = row.vod_name.toLowerCase().indexOf(kw.toLowerCase());
+          if (idx >= 0) {
+            sn.appendChild(document.createTextNode(row.vod_name.slice(0, idx)));
+            var b = document.createElement("b"); b.textContent = row.vod_name.slice(idx, idx + kw.length);
+            sn.appendChild(b);
+            sn.appendChild(document.createTextNode(row.vod_name.slice(idx + kw.length)));
+          } else sn.textContent = row.vod_name;
+          if (row.type_name) {
+            var bg = document.createElement("span"); bg.className = "badge"; bg.textContent = row.type_name;
+            sn.appendChild(bg);
+          }
+          d.querySelector(".sm").textContent = [row.vod_year, row.vod_remarks].filter(Boolean).join(" · ");
+          d.onclick = function () { $("sugBox").style.display = "none"; $("sugBox").innerHTML = ""; openDetail(row); };
+          box.appendChild(d);
+        });
+        box.style.display = "block";
+      }).catch(function () {});
+    }, 350);
+  }
+  $("q").addEventListener("input", function () { if (!composing) sugTick(); });
+  $("q").addEventListener("compositionstart", function () { composing = true; });
+  $("q").addEventListener("compositionend", function () { composing = false; sugTick(); });
   // iOS 内嵌浏览器(Documents等WKWebView宿主)与旧版PWA会静默吞掉 window.open，
   // 返回空时退到当前页跳转，保证必有反应
   function openExt(u) {
