@@ -346,17 +346,39 @@
     var el = { home: "st-home", cat: "st-cat", search: "st-search", follow: "st-follow", hist: "st-hist" }[view];
     if (el) $(el).textContent = m || "";
   }
-  var apiCache = {};
+  var apiCache = {}, apiQueue = [], apiActive = 0;
   function api(u, opts) {
+    return new Promise(function (resolve, reject) {
+      apiQueue.push({ u: u, opts: opts, resolve: resolve, reject: reject });
+      apiPump();
+    });
+  }
+  function apiPump() {
+    if (apiActive >= 4 || !apiQueue.length) return;   // 限流：同时最多4个请求，防资源站限流
+    var job = apiQueue.shift();
+    apiActive++;
+    apiFetch(job.u, job.opts).then(function (r) {
+      apiActive--; job.resolve(r); apiPump();
+    }, function (e) {
+      apiActive--; job.reject(e); apiPump();
+    });
+    apiPump();
+  }
+  function apiFetch(u, opts) {
     if (!opts || !opts.fresh) {
       var c = apiCache[u];
       if (c && Date.now() - c.t < 90000) return Promise.resolve(c.d);
     }
+    var retries = (opts && opts.retries != null) ? opts.retries : 1;
     var ctl = new AbortController();
     var tm = setTimeout(function () { ctl.abort(); }, 15000);
     return fetch(u, { signal: ctl.signal }).then(function (r) {
       clearTimeout(tm); return r.json();
-    }, function (e) { clearTimeout(tm); throw e; }).then(function (d) {
+    }, function (e) {
+      clearTimeout(tm);
+      if (retries > 0) return apiFetch(u, { fresh: opts && opts.fresh, retries: retries - 1 });
+      throw e;
+    }).then(function (d) {
       apiCache[u] = { d: d, t: Date.now() };
       return d;
     });
@@ -445,8 +467,7 @@
     if (v === "mine") renderHist();
     if (v === "parse") renderJumps();
     if (v === "search") {
-      renderSHist();
-      if (!$("searchGrid").children.length) renderSearchHot();
+      if (!$("searchGrid").children.length) { renderSHist(); renderSearchHot(); }
       setTimeout(function () { try { $("q").focus(); } catch (e) {} }, 100);
     }
     if (v === "home" && !$("homeBlocks").children.length) { renderHome(); loadHome(false); }
@@ -464,11 +485,11 @@
 
   /* ---------- 首页（多页拉取 + 热度排行） ---------- */
   var homeLoading = false, homePool = [];
-  function loadHome(more) {
+  function loadHome(more, autoRetried) {
     state.homeGen = (state.homeGen || 0) + 1;
     var gen = state.homeGen;
     state.loading = true;
-    status("home", "加载中…");
+    status("home", autoRetried ? "网络不稳，自动重试中…" : "加载中…");
     var pages = [1, 2, 3, 4, 5];
     var done = 0;
     pages.forEach(function (pg) {
@@ -481,7 +502,15 @@
       }).catch(function () {}).then(function () {
         if (gen !== state.homeGen) return;
         done++;
-        if (done === pages.length) { status("home", ""); state.loading = false; }
+        if (done === pages.length) {
+          if (homePool.length) { status("home", ""); state.loading = false; }
+          else if (!autoRetried) {
+            setTimeout(function () {
+              if (gen === state.homeGen) loadHome(false, true);
+              else state.loading = false;
+            }, 1200);
+          } else { status("home", "加载失败，下拉刷新重试"); state.loading = false; }
+        }
       });
     });
   }
@@ -666,11 +695,11 @@
     };
     box.appendChild(t2);
   }
-  function loadCat(more) {
+  function loadCat(more, autoRetried) {
     state.catGen = (state.catGen || 0) + 1;
     var gen = state.catGen;
     catLoading = true;
-    status("cat", more ? "加载更多…" : "加载中…");
+    status("cat", autoRetried ? "网络不稳，自动重试中…" : (more ? "加载更多…" : "加载中…"));
     var pages = more ? [state.catPg] : [1, 2, 3];
     var done = 0, failed = 0;
     pages.forEach(function (pg) {
@@ -687,6 +716,13 @@
           if (catPool.length) {
             status("cat", "共 " + catPool.length + " 部");
             $("st-cat").style.cursor = ""; $("st-cat").onclick = null;
+          } else if (failed >= pages.length && !autoRetried) {
+            status("cat", "网络不稳，自动重试中…");
+            setTimeout(function () {
+              if (gen === state.catGen) loadCat(more, true);
+              else catLoading = false;
+            }, 1200);
+            return;
           } else if (failed >= pages.length) {
             status("cat", "加载失败，点此重试");
             $("st-cat").style.cursor = "pointer";
@@ -731,12 +767,13 @@
     status("search", "搜索「" + raw + "」…");
     $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
     $("hotSec").style.display = "none"; $("hotGrid").innerHTML = "";
+    $("shist").innerHTML = "";
     state.epHint = parseHint(raw);
     var title = raw.replace(/第?\s*\d{1,4}\s*[集期话]/g, "").replace(/^[，,。.\s]+|[，,。.\s]+$/g, "").trim() || raw;
     try {
       var sh = getJ("m_shist", "[]");
       sh = [raw].concat(sh.filter(function (x) { return x !== raw; })).slice(0, 8);
-      setJ("m_shist", sh); renderSHist();
+      setJ("m_shist", sh);   // 保存但不渲染：搜索结果页不显示历史，回到搜索页时再显示
     } catch (e) {}
     api(API + "?ac=videolist&wd=" + encodeURIComponent(title)).then(function (j) {
       var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; });
