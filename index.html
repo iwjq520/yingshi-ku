@@ -193,6 +193,15 @@
   .rank .rn { font-size: 13.5px; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .rank .rn b { color: #ff8f1f; }
   .rank .rm { font-size: 11px; color: #6a7077; margin-top: 3px; }
+  .diagbtn { display: block; width: 100%; margin-top: 8px; padding: 9px; font-size: 12px;
+    border-radius: 8px; border: 1px solid #2f3540; background: transparent; color: #9aa0a8; cursor: pointer; }
+  #diagBox { position: fixed; inset: 0; z-index: 1500; background: rgba(8,10,14,.94); display: none;
+    overflow-y: auto; padding: calc(env(safe-area-inset-top) + 14px) 14px 20px; }
+  #diagBox pre { font-family: Menlo, Consolas, monospace; font-size: 11px; color: #9fd6a8;
+    white-space: pre-wrap; word-break: break-all; line-height: 1.7; }
+  #diagBox .dbar { display: flex; gap: 8px; margin-bottom: 10px; }
+  #diagBox .dbar button { padding: 8px 14px; font-size: 12px; border-radius: 8px; border: none;
+    background: #232730; color: #c9ced6; }
   .morebtn { display: block; width: 100%; margin-top: 8px; padding: 9px; font-size: 12px;
     border-radius: 8px; border: none; background: #232730; color: #9aa0a8; cursor: pointer; }
   .morebtn:hover { color: #f2f3f5; }
@@ -204,6 +213,10 @@
 </head>
 <body>
   <div id="tip"></div>
+  <div id="diagBox">
+    <div class="dbar"><button id="diagCopy">复制结果</button><button id="diagClose">关闭</button></div>
+    <pre id="diagOut"></pre>
+  </div>
   <div id="pull"><span class="spin"></span><i id="pullTxt">下拉刷新</i></div>
 
   <div class="sbar">
@@ -273,6 +286,7 @@
       <div class="mineCard">
         <div class="mt">设置</div>
         <button class="dangertool" id="clearData">清除本机数据（追剧 / 观看历史）</button>
+        <button class="diagbtn" id="runDiag">运行诊断（排障用，点完截图发给开发者）</button>
       </div>
       <div class="mineCard">
         <div class="mt">关于</div>
@@ -1547,6 +1561,39 @@
     if (fire) doRefresh();
     else if (pulling) pullReset();
   });
+
+  /* ---------- 真机诊断 ---------- */
+  window.__inpCount = 0;
+  $("purl").addEventListener("input", function () { window.__inpCount++; });
+  $("runDiag").onclick = function () {
+    var out = [];
+    var swc = (navigator.serviceWorker && navigator.serviceWorker.controller) ? navigator.serviceWorker.controller.scriptURL : "无（非PWA或未注册）";
+    out.push("页面: " + location.href.slice(0, 70));
+    out.push("SW: " + swc);
+    out.push("输入事件计数: " + (window.__inpCount || 0) + "（在解析页长按粘贴一次后应+1）");
+    try {
+      var prog = getProg(), pc = 0, wsee = 0;
+      Object.keys(prog).forEach(function (k) { pc++; if ((prog[k].wsec || 0) >= 900) wsee++; });
+      out.push("在看收录: " + wsee + " 部 / 播放进度: " + pc + " 条");
+      out.push("播放模式: " + (localStorage.getItem("m_pmode") || "默认直连"));
+      var keys = []; for (var i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+      out.push("存储键: " + keys.join(","));
+    } catch (e) { out.push("存储读取异常: " + e.message); }
+    var done = function (extra) {
+      var txt = out.concat(extra || []).join("\n");
+      $("diagOut").textContent = txt;
+      $("diagBox").style.display = "block";
+    };
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (ks) { done("缓存桶: " + ks.join(",")); }).catch(function () { done(); });
+    } else done();
+  };
+  $("diagCopy").onclick = function () {
+    try {
+      navigator.clipboard.writeText($("diagOut").textContent).then(function () { tip("已复制"); }, function () { tip("请手动截图"); });
+    } catch (e) { tip("请手动截图"); }
+  };
+  $("diagClose").onclick = function () { $("diagBox").style.display = "none"; };
 
   renderCatChips();
   renderHome();
