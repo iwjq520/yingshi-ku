@@ -91,6 +91,10 @@
   .pline { padding: 9px 14px; font-size: 13px; border-radius: 8px; background: #232730;
     border: none; color: #c9ced6; cursor: pointer; }
   .pline.star { background: transparent; border: 1px solid #ff8f1f; color: #ff8f1f; font-weight: 600; }
+  .pline.on { background: #ff8f1f; color: #201004; font-weight: 600; }
+  .proutes { display: none; gap: 6px; padding: 6px 10px 2px; overflow-x: auto; flex-shrink: 0; }
+  .proutes .pline { padding: 6px 12px; font-size: 12px; flex-shrink: 0; }
+  .proutes .ph { font-size: 11px; color: #5f6570; align-self: center; flex-shrink: 0; }
   .plines .note { font-size: 11px; color: #5f6570; align-self: center; }
   .about { font-size: 11px; color: #565c66; line-height: 1.9; }
 
@@ -327,6 +331,7 @@
       <button id="pDirect" title="系统播放器直连源站，快进加载更快">直连</button>
       <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）">网页</button>
     </div>
+    <div class="proutes" id="pRoutes" style="display:none"></div>
     <iframe id="pFrame" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
     <video id="pVideo" playsinline webkit-playsinline controls preload="auto" style="display:none"></video>
     <div class="eplist" id="pEplist" style="display:none"></div>
@@ -1229,6 +1234,8 @@
     }
     state.pcur = PLAYER + encodeURIComponent(ep.url);
     $("ply").style.display = "flex";
+    window.plyMode = "ep";
+    $("pRoutes").style.display = "none";
     if (!directMode) $("pFrame").src = PLAYER + encodeURIComponent(ep.url);
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || ("第" + (i + 1) + "集"));
     renderPEplist();
@@ -1331,6 +1338,7 @@
     saveSec();
     sessSettle();
     $("ply").style.display = "none";
+    $("pRoutes").style.display = "none";
     $("pFrame").src = "about:blank";
     var v = $("pVideo");
     try { v.pause(); } catch (e) {}
@@ -1439,6 +1447,39 @@
     { name: "冰豆", url: "https://bd.jx.cn/?url=" },
     { name: "麒麟", url: "https://free.maccms.xyz/?url=" }
   ];
+  function openParse(s, u) {
+    window.plyParseU = u;
+    window.plyMode = "parse";
+    var v = $("pVideo");
+    try { v.pause(); } catch (e) {}
+    v.removeAttribute("src"); v.load(); v.style.display = "none";
+    var f = $("pFrame");
+    f.style.display = "block";
+    $("ply").style.display = "flex";
+    f.src = s.url + encodeURIComponent(u);
+    $("pTitle").textContent = s.name + " · 官方源播放";
+    $("pEplist").innerHTML = ""; $("pEplist").style.display = "none";
+    renderPRoutes(s.name);
+    if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
+  }
+  function renderPRoutes(cur) {
+    var box = $("pRoutes");
+    box.style.display = "flex";
+    box.innerHTML = "";
+    var h = document.createElement("span");
+    h.className = "ph"; h.textContent = "线路";
+    box.appendChild(h);
+    PSOURCES.forEach(function (s) {
+      var b = document.createElement("span");
+      b.className = "pline" + (s.name === cur ? " on" : "");
+      b.textContent = s.name;
+      b.onclick = function () {
+        if (s.name === cur || !window.plyParseU) return;
+        openParse(s, window.plyParseU);
+      };
+      box.appendChild(b);
+    });
+  }
   (function () {
     var box = $("plines");
     PSOURCES.forEach(function (s) {
@@ -1448,12 +1489,7 @@
       b.onclick = function () {
         var u = getPU(true);
         if (!u) return;
-        window.plyMode = "parse";
-        $("ply").style.display = "flex";
-        $("pFrame").src = s.url + u;
-        $("pTitle").textContent = s.name + " · 官方源播放";
-        $("pEplist").innerHTML = "";
-        if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
+        openParse(s, u);
       };
       box.appendChild(b);
     });
@@ -1585,5 +1621,6 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
+</body>
 </body>
 </html>
