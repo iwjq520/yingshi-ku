@@ -349,7 +349,8 @@
   var apiCache = {}, apiQueue = [], apiActive = 0;
   function api(u, opts) {
     return new Promise(function (resolve, reject) {
-      apiQueue.push({ u: u, opts: opts, resolve: resolve, reject: reject });
+      var job = { u: u, opts: opts, resolve: resolve, reject: reject };
+      if (opts && opts.front) apiQueue.unshift(job); else apiQueue.push(job);
       apiPump();
     });
   }
@@ -503,7 +504,7 @@
         if (gen !== state.homeGen) return;
         done++;
         if (done === pages.length) {
-          if (homePool.length) { status("home", ""); state.loading = false; }
+          if (homePool.length) { status("home", ""); state.loading = false; prefetchCat(); }
           else if (!autoRetried) {
             setTimeout(function () {
               if (gen === state.homeGen) loadHome(false, true);
@@ -512,6 +513,15 @@
           } else { status("home", "加载失败，下拉刷新重试"); state.loading = false; }
         }
       });
+    });
+  }
+  function prefetchCat() {
+    // 首页加载完成后，后台预取当前默认栏目前2页 → 用户点「分类」缓存命中秒开
+    var gen = state.catGen;
+    [1, 2].forEach(function (pg, i) {
+      setTimeout(function () {
+        if (gen === state.catGen) api(API + "?ac=videolist&t=" + state.catId + "&wd=%20&pg=" + pg).catch(function () {});
+      }, i * 400);
     });
   }
   function cnScore(row) {
@@ -700,10 +710,10 @@
     var gen = state.catGen;
     catLoading = true;
     status("cat", autoRetried ? "网络不稳，自动重试中…" : (more ? "加载更多…" : "加载中…"));
-    var pages = more ? [state.catPg] : [1, 2, 3];
+    var pages = autoRetried ? [1] : (more ? [state.catPg] : [1, 2, 3]);
     var done = 0, failed = 0;
     pages.forEach(function (pg) {
-      api(API + "?ac=videolist&t=" + state.catId + "&wd=%20&pg=" + pg).then(function (r) {
+      api(API + "?ac=videolist&t=" + state.catId + "&wd=%20&pg=" + pg, { front: true, retries: 2 }).then(function (r) {
         if (gen !== state.catGen) return;
         var fresh = [];
         (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) fresh.push(x); });
@@ -721,7 +731,7 @@
             setTimeout(function () {
               if (gen === state.catGen) loadCat(more, true);
               else catLoading = false;
-            }, 1200);
+            }, 2000);
             return;
           } else if (failed >= pages.length) {
             status("cat", "加载失败，点此重试");
