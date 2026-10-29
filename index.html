@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="72">
+<meta name="appver" content="73">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -746,7 +746,7 @@
     searchPool: [], searchPage: 1, searchPageCount: 1, searchTotal: 0, searchGen: 0, searchNote: "", searchViewGen: 0,
     searchFilters: { type: "", cls: "", area: "", year: "" },
     searchFacets: { cls: [], area: [], years: [] },
-    histFilter: "all", histEdit: false, histSel: {}, followGen: 0
+    histFilter: "all", histEdit: false, histSel: {}, followGen: 0, homeDirty: false
   };
   var plyMode = "ep";
 
@@ -858,6 +858,12 @@
     if (el) $(el).textContent = m || "";
   }
   var apiCache = {}, apiQueue = [], apiActive = 0;
+  function pruneApiCache() {
+    var keys = Object.keys(apiCache);
+    if (keys.length <= 120) return;
+    keys.sort(function (a, b) { return (apiCache[a].t || 0) - (apiCache[b].t || 0); });
+    keys.slice(0, keys.length - 120).forEach(function (k) { delete apiCache[k]; });
+  }
   function api(u, opts) {
     return new Promise(function (resolve, reject) {
       var job = { u: u, opts: opts, resolve: resolve, reject: reject };
@@ -892,6 +898,7 @@
       throw e;
     }).then(function (d) {
       apiCache[u] = { d: d, t: Date.now() };
+      pruneApiCache();
       return d;
     });
   }
@@ -1175,7 +1182,12 @@
         try { $("q").focus({ preventScroll: true }); } catch (e) { try { $("q").focus(); } catch (e2) {} }
       }, 100);
     }
-    if (v === "home" && !$("homeBlocks").children.length) { renderHome(); loadHome(false); }
+    if (v === "home" && (state.homeDirty || !$("homeBlocks").children.length)) {
+      var needLoad = !homePool.length;
+      state.homeDirty = false;
+      renderHome();
+      if (needLoad) loadHome(false);
+    }
     if (v === "cat" && !$("catGrid").children.length) loadCat(false);
     window.scrollTo(0, state.scrollByView[v] || 0);
   }
@@ -1200,6 +1212,11 @@
 
   /* ---------- 首页（多页拉取 + 热度排行） ---------- */
   var homeLoading = false, homePool = [];
+  var homeRenderTimer = null;
+  function scheduleHomeRender() {
+    if (homeRenderTimer) return;
+    homeRenderTimer = setTimeout(function () { homeRenderTimer = null; renderHome(); }, 60);
+  }
   function loadHome(more, autoRetried) {
     state.homeGen = (state.homeGen || 0) + 1;
     var gen = state.homeGen;
@@ -1213,7 +1230,7 @@
         var fresh = [];
         (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) fresh.push(x); });
         homePool = mergeBySort(homePool, fresh);
-        renderHome();
+        scheduleHomeRender();
       }).catch(function () {}).then(function () {
         if (gen !== state.homeGen) return;
         done++;
@@ -1317,7 +1334,7 @@
       heroRows.forEach(function (row) {
         var d = document.createElement("div");
         d.className = "heroCard";
-        d.innerHTML = '<img loading="lazy" decoding="async" alt=""><div class="hmask"></div><span class="htag"></span>' +
+        d.innerHTML = '<img loading="eager" fetchpriority="high" decoding="async" alt=""><div class="hmask"></div><span class="htag"></span>' +
           '<div class="hb"><div class="hn"></div><div class="hs"></div></div>';
         var im = d.querySelector("img");
         if (row.vod_pic) { im.src = row.vod_pic; im.onload = function () { im.className = "on"; }; if (im.complete) im.className = "on"; }
@@ -2638,7 +2655,7 @@
     clearMediaSession();
     unlockScroll();
     if ($("detail").style.display === "block") renderDetailEps();
-    renderHome();
+    if (state.view === "home") renderHome(); else state.homeDirty = true;
   }
   function requestClosePly() {
     if (UCONF.historyBack && pushN > 0) { history.back(); return; }
