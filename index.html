@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
+<meta name="appver" content="46">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -292,6 +293,7 @@
           片库来自公开资源接口 · 画质以片源为准<br>
           解析线路播平台官方流 · 直连源可能含拼接广告，到点拖过即可<br>
           思路来自开源项目 88lin/video_vip · 仅供学习，请支持正版
+          <div id="verLine" style="margin-top:6px;color:#8a9099">版本检查中…</div>
         </div>
       </div>
     </section>
@@ -1576,6 +1578,32 @@
   }
 
   /* ---------- 启动 ---------- */
+  /* 版本显示与更新提示：本页版本取 meta，已就绪版本取缓存名；新版到位时提示重开生效 */
+  (function () {
+    var pv = (document.querySelector('meta[name="appver"]') || {}).content || "?";
+    var line = document.getElementById("verLine");
+    function render(ready) {
+      if (!line) return;
+      if (ready && ready !== pv) line.innerHTML = "版本：本页 v" + pv + " · <b style='color:#ff8f1f'>新版 v" + ready + " 已就绪，重开App生效</b>";
+      else line.textContent = "版本：v" + pv + (ready ? " · 已是最新" : "");
+    }
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (ks) {
+        var ready = "";
+        ks.forEach(function (k) { var m = k.match(/yingshiku-v(\d+)/); if (m) ready = m[1]; });
+        render(ready);
+      }).catch(function () { render(""); });
+    } else render("");
+    try {
+      if ("serviceWorker" in navigator) {
+        var had = !!navigator.serviceWorker.controller;
+        navigator.serviceWorker.addEventListener("controllerchange", function () {
+          if (had) tip("已更新到最新版本，重开App生效");
+          had = true;
+        });
+      }
+    } catch (e) {}
+  })();
   /* ---------- 下拉刷新 / 页签刷新 ---------- */
   var pullEl = $("pull"), pullTxt = $("pullTxt");
   var pullStartY = null, pulling = false, pullDist = 0, refreshing = false;
@@ -1651,13 +1679,5 @@
   };
 })();
 </script>
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function () {
-    navigator.serviceWorker.register("sw.js").catch(function () {});
-  });
-}
-</script>
-</body>
 </body>
 </html>
