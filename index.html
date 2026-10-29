@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="60">
+<meta name="appver" content="61">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -290,6 +290,13 @@
   .dseclink { float: right; font-size: 11px; color: #ff8f1f; background: none; border: none; padding: 2px 0; }
   .actorlink { color: #c9ced6; border-bottom: 1px dashed #3a4048; }
   .chips .sep { width: 1px; background: #2a2f37; margin: 8px 3px; flex-shrink: 0; }
+
+  /* ===== 阶段1：播放内核 ===== */
+  #pTap { position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.34); }
+  #pTap button { padding: 12px 22px; font-size: 14px; border-radius: 999px; border: none;
+    background: #ff8f1f; color: #201004; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  .spdrow .div { width: 1px; background: #2a2f37; margin: 4px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -450,6 +457,7 @@
     <div class="spdrow" id="pSpeed" style="display:none"></div>
     <div class="eplist" id="pEplist" style="display:none"></div>
     <div id="pNext"></div>
+    <div id="pTap"><button id="pTapBtn">点此播放</button></div>
   </div>
 
 <script>
@@ -457,6 +465,24 @@
   var $ = function (id) { return document.getElementById(id); };
   var API = "https://bfzyapi.com/api.php/provide/vod/";
   var PLAYER = "https://wsyzy.vip/m3u8/?url=";
+  /* ===== 播放器配置（集中管理；可在设置面板/本地覆盖，逻辑里不硬编码） ===== */
+  var PCONF = {
+    speeds: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+    preloadNextPct: 0.85,          // 观看到 85% 时预取下一集清单（只取 m3u8 文本，不建流）
+    preloadNext: true,             // 预加载下一集开关
+    progressSaveSec: 4,            // 进度落盘防抖间隔
+    autoplayTapFallback: true,     // 自动播放被策略拦截时就地提示"点此播放"
+    hlsCdns: [                     // 桌面端 HLS 回退库（按顺序尝试，国内 CDN 优先）
+      "https://cdn.bootcdn.net/ajax/libs/hls.js/1.5.15/hls.min.js",
+      "https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"
+    ],
+    hlsBuffer: { maxBufferLength: 30, maxMaxBufferLength: 60, maxBufferSize: 60e6 },
+    keyboard: true                 // PC 快捷键
+  };
+  try {
+    var _pc = JSON.parse(localStorage.getItem("m_pconf") || "{}");
+    Object.keys(_pc).forEach(function (k) { if (k in PCONF) PCONF[k] = _pc[k]; });
+  } catch (e) {}
   var state = {
     view: "home", catId: 31, catPg: 3, catYear: "", catSort: "hot", homePg: 1, loading: false, cnOnly: false, catGen: 0, homeGen: 0, showAllHist: false,
     lines: [], lineIdx: 0, eps: [], epIdx: -1, epPage: 0, epDesc: false, epHint: 0, curRow: null,
@@ -1835,6 +1861,79 @@
   var directMode = true;   // 默认直连（系统播放器：快进快 + 秒级进度记忆）
   try { if (localStorage.getItem("m_pmode") === "cloud") directMode = false; } catch (e) {}
 
+  /* ---------- 播放引擎：iOS/Safari 原生 HLS 优先，桌面回退 hls.js ---------- */
+  var hlsInst = null, hlsLoading = null, qualLevels = [], qualCur = -1, srcGen = 0;
+  function isIOS() {
+    // iPadOS 13+ 伪装成 Mac（带触摸点），需单独识别
+    return /iP(hone|od|ad)/.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  }
+  function canNativeHls() {
+    var v = $("pVideo");
+    // 仅 iOS/iPadOS 用系统 HLS；桌面 Chromium 对 m3u8 的 canPlayType 会误报 "maybe"，不可信
+    return isIOS() && !!(v.canPlayType && v.canPlayType("application/vnd.apple.mpegurl"));
+  }
+  function loadHlsjs() {
+    if (window.Hls) return Promise.resolve(window.Hls);
+    if (hlsLoading) return hlsLoading;
+    var list = (PCONF.hlsCdns || []).slice();
+    hlsLoading = new Promise(function (res, rej) {
+      (function next() {
+        if (!list.length) { hlsLoading = null; rej(new Error("hls.js 加载失败")); return; }
+        var s = document.createElement("script");
+        s.src = list.shift();
+        s.onload = function () { window.Hls ? res(window.Hls) : next(); };
+        s.onerror = function () { next(); };
+        document.head.appendChild(s);
+      })();
+    });
+    return hlsLoading;
+  }
+  function destroyEngine() {
+    try { if (hlsInst) hlsInst.destroy(); } catch (e) {}
+    hlsInst = null; qualLevels = []; qualCur = -1;
+  }
+  function attachSource(u) {
+    var v = $("pVideo");
+    var g = ++srcGen;                 // 代际令牌：快速切集时丢弃过期挂载
+    destroyEngine();
+    if (canNativeHls()) { v.src = u; return Promise.resolve("native"); }
+    return loadHlsjs().then(function (H) {
+      if (g !== srcGen) return "stale";
+      if (!H.isSupported()) { v.src = u; return "native"; }
+      hlsInst = new H({
+        enableWorker: true, lowLatencyMode: false,
+        maxBufferLength: PCONF.hlsBuffer.maxBufferLength,
+        maxMaxBufferLength: PCONF.hlsBuffer.maxMaxBufferLength,
+        maxBufferSize: PCONF.hlsBuffer.maxBufferSize
+      });
+      hlsInst.on(H.Events.MANIFEST_PARSED, function () {
+        qualLevels = (hlsInst.levels || []).map(function (l) { return l.height || 0; });
+        if ($("pSpeed") && $("pSpeed").style.display === "flex") renderSpd();
+      });
+      hlsInst.on(H.Events.ERROR, function (e, d) {
+        if (d && d.fatal && d.type === H.ErrorTypes.NETWORK_ERROR) hlsInst.startLoad();
+      });
+      hlsInst.loadSource(u);
+      hlsInst.attachMedia(v);
+      return "hlsjs";
+    }).catch(function () { v.src = u; return "native"; });
+  }
+  function showTap() { var t = $("pTap"); if (t) t.style.display = "flex"; }
+  function hideTap() { var t = $("pTap"); if (t) t.style.display = "none"; }
+  function safePlay() {
+    var v = $("pVideo");
+    var p = v.play();
+    if (p && p.catch) p.catch(function (err) {
+      // iOS 自动播放策略：非手势触发的 play() 被拒 → 就地给可点击兜底
+      if (err && err.name === "NotAllowedError" && PCONF.autoplayTapFallback) showTap();
+    });
+  }
+  $("pTapBtn").onclick = function () {
+    hideTap();
+    try { $("pVideo").play().catch(function () {}); } catch (e) {}
+  };
+
   /* ---------- 画面比例（智能默认：横屏铺满、竖屏完整） ---------- */
   var FIT_MODES = [["auto", "智能"], ["contain", "适应"], ["cover", "铺满"], ["fill", "拉伸"]];
   var fitMode = "auto";
@@ -1889,7 +1988,8 @@
     applyFit();
     if (directMode) {
       if (v.dataset.u !== ep.url) {
-        v.dataset.u = ep.url; v.src = ep.url;
+        v.dataset.u = ep.url;
+        hideTap();
         var rs = state.resumeSec || 0;
         if (rs > 3) {
           var seeked = false;
@@ -1903,11 +2003,11 @@
           v.addEventListener("loadedmetadata", trySeek);
           setTimeout(trySeek, 2500);
         }
-        var p = v.play(); if (p && p.catch) p.catch(function () {});
-        applySpd();
+        attachSource(ep.url).then(function (m) { if (m !== "stale") { safePlay(); applySpd(); } });
       }
       f.style.display = "none"; v.style.display = "block";
     } else {
+      destroyEngine();
       try { v.pause(); } catch (e) {}
       v.style.display = "none"; f.style.display = "block";
     }
@@ -1920,8 +2020,8 @@
     if (directMode) applyPlayer();
     else playEp(state.epIdx);
   };
-  /* ---------- 倍速（直连模式，跟随系统播放器） ---------- */
-  var SPD = [0.75, 1, 1.25, 1.5, 2];
+  /* ---------- 倍速 + 清晰度（直连模式） ---------- */
+  var SPD = PCONF.speeds;
   var spd = 1;
   try { var spv = parseFloat(localStorage.getItem("m_spd")); if (spv >= 0.5 && spv <= 2.5) spd = spv; } catch (e) {}
   function applySpd() {
@@ -1943,6 +2043,26 @@
       };
       box.appendChild(b);
     });
+    // 清晰度：hls.js 可切档；iOS 原生 HLS 由系统自适应（无法强制单档）
+    if (hlsInst && qualLevels.length > 1) {
+      var dv = document.createElement("span"); dv.className = "div"; box.appendChild(dv);
+      var t2 = document.createElement("small"); t2.textContent = "清晰度"; box.appendChild(t2);
+      var autoB = document.createElement("button");
+      autoB.className = "spd" + (qualCur < 0 ? " on" : "");
+      autoB.textContent = "自动";
+      autoB.onclick = function () { qualCur = -1; if (hlsInst) hlsInst.currentLevel = -1; renderSpd(); };
+      box.appendChild(autoB);
+      qualLevels.forEach(function (h, i) {
+        var b = document.createElement("button");
+        b.className = "spd" + (qualCur === i ? " on" : "");
+        b.textContent = h ? (h >= 1000 ? (h / 1000).toFixed(0) + "K" : h + "P") : "档" + (i + 1);
+        b.onclick = function () { qualCur = i; if (hlsInst) hlsInst.currentLevel = i; renderSpd(); };
+        box.appendChild(b);
+      });
+    } else if (canNativeHls()) {
+      var dv2 = document.createElement("span"); dv2.className = "div"; box.appendChild(dv2);
+      var t3 = document.createElement("small"); t3.textContent = "清晰度 · 自动（iOS 系统自适应）"; box.appendChild(t3);
+    }
   }
 
   /* ---------- 自动连播下一集 ---------- */
@@ -1979,10 +2099,24 @@
     showNext(state.epIdx + 1);
   });
   pv.addEventListener("loadedmetadata", applySpd);
+  var preloadMark = "";
+  function maybePreloadNext() {
+    if (!PCONF.preloadNext || window.plyMode !== "ep" || !state.curRow) return;
+    if (!pv.duration || !isFinite(pv.duration)) return;
+    if (pv.currentTime / pv.duration < PCONF.preloadNextPct) return;
+    var nx = state.eps[state.epIdx + 1];
+    if (!nx) return;
+    var key = String(state.curRow.vod_id) + ":" + (state.epIdx + 1);
+    if (preloadMark === key) return;
+    preloadMark = key;
+    // 只预热清单文本（不建流、不下分片），蹭到起播时的 DNS/CDN 缓存
+    try { fetch(nx.url, { mode: "cors" }).catch(function () {}); } catch (e) {}
+  }
   pv.addEventListener("timeupdate", function () {
     if (!state.curRow || !pv.currentTime || pv.paused) return;
+    maybePreloadNext();
     var now = Date.now();
-    if (pv._ls && now - pv._ls < 4000) return;
+    if (pv._ls && now - pv._ls < PCONF.progressSaveSec * 1000) return;
     pv._ls = now;
     try {
       var prog = getProg(); var p = prog[String(state.curRow.vod_id)];
@@ -1998,11 +2132,39 @@
       }
     } catch (e) {}
   }
+  function toggleFs() {
+    var el = $("ply");
+    if (!document.fullscreenElement) {
+      if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      else tip("iOS 请点视频右下角的全屏按钮");
+    } else if (document.exitFullscreen) document.exitFullscreen();
+  }
+  /* PC 快捷键（iOS 无键盘，自动无效） */
+  document.addEventListener("keydown", function (e) {
+    if (!PCONF.keyboard || $("ply").style.display !== "flex") return;
+    var tag = ((e.target && e.target.tagName) || "").toLowerCase();
+    if (tag === "input" || tag === "textarea") return;
+    var v = $("pVideo");
+    if (!v || v.style.display === "none") return;
+    var k = e.key;
+    if (k === " " || k === "k" || k === "K") { e.preventDefault(); if (v.paused) safePlay(); else v.pause(); }
+    else if (k === "ArrowRight") { e.preventDefault(); v.currentTime = Math.min(v.duration || 1e9, v.currentTime + 10); }
+    else if (k === "ArrowLeft") { e.preventDefault(); v.currentTime = Math.max(0, v.currentTime - 10); }
+    else if (k === "ArrowUp") { e.preventDefault(); v.volume = Math.min(1, v.volume + 0.1); tip("音量 " + Math.round(v.volume * 100) + "%"); }
+    else if (k === "ArrowDown") { e.preventDefault(); v.volume = Math.max(0, v.volume - 0.1); tip("音量 " + Math.round(v.volume * 100) + "%"); }
+    else if (k === "m" || k === "M") { v.muted = !v.muted; tip(v.muted ? "已静音" : "取消静音"); }
+    else if (k === "f" || k === "F") { toggleFs(); }
+  });
+  window.addEventListener("pagehide", function () { try { saveSec(); } catch (e) {} });
   $("pClose").onclick = function () {
     saveSec();
     sessSettle();
     clearTimeout(parseWatch);
     hideNext();
+    hideTap();
+    destroyEngine();
+    preloadMark = "";
     $("ply").style.display = "none";
     $("pRoutes").style.display = "none";
     $("pFitRow").style.display = "none";
@@ -2148,6 +2310,8 @@
     window.plyMode = "parse";
     window.plyYouku = /youku\.com/i.test((u.split("?")[0] || ""));
     var v = $("pVideo");
+    hideTap();
+    destroyEngine();
     try { v.pause(); } catch (e) {}
     v.removeAttribute("src"); v.load(); v.style.display = "none";
     var f = $("pFrame");
@@ -2509,6 +2673,8 @@
   function playDl(d) {
     window.plyMode = "dl";
     window.plyParseU = d.m3u8;
+    destroyEngine();
+    hideTap();
     try { $("pVideo").pause(); } catch (e) {}
     $("pVideo").style.display = "none";
     $("pEplist").style.display = "none";
