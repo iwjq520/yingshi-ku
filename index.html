@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="49">
+<meta name="appver" content="50">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -1555,6 +1555,20 @@
     // B站App分享给的是 b23.tv/BVxxx 短链，解析站不跟随跳转——BV号就在短链里，直接改写成正式链接再送解析
     var mB = u.match(/^https?:\/\/b23\.tv\/((?:BV|av)[\w]+)/i);
     if (mB) u = "https://www.bilibili.com/video/" + mB[1];
+    // 其余分享短链（qy.net爱奇艺/b23随机码/t.cn/url.cn等）解析站打不开：给出「打开短链」引导而非静默失败
+    var uBody0 = u.split("?")[0];
+    if (/^https?:\/\/(qy\.net|iqiyi\.cn|b23\.tv|t\.cn|url\.cn|dwz\.cn)\//i.test(uBody0)) {
+      if (strict) {
+        var pe = $("perr");
+        pe.innerHTML = "这是分享短链，解析站打不开。<span id='plink' style='color:#ff8f1f;text-decoration:underline'>点此打开短链</span> → 在打开的页面点开那一集 → 复制它的网址回来粘贴";
+        var lk = document.getElementById("plink");
+        if (lk) lk.onclick = function () {
+          openExt(u);
+          pe.innerHTML = "已在浏览器打开短链。在打开的页面<b style='color:#ff8f1f'>点开那一集</b>，再复制它的网址回来粘贴（粘贴后点「解析」）";
+        };
+      }
+      return null;
+    }
     if (!/^https?:\/\/\S+\.\S+/i.test(u)) {
       if (strict) $("perr").textContent = "⚠ 输入的是剧名？点下方平台按钮去官方平台搜；或粘贴剧集页链接";
       return null;
