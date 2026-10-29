@@ -1,5 +1,5 @@
 /* 影视库 离线缓存外壳 v8:秒开 + 后台更新 + 弱网兜底 + 海报缓存 + 剧集离线缓存 */
-var CACHE = "yingshiku-v77";
+var CACHE = "yingshiku-v78";
 var IMG_CACHE = "yingshiku-imgs-v1";
 var DL_CACHE = "yingshiku-dl";
 var SHELL = ["./", "./index.html", "./dlplayer.html", "./hls.min.js", "./icon-192.png", "./icon-512.png", "./manifest.webmanifest"];
@@ -69,25 +69,17 @@ self.addEventListener("fetch", function (e) {
     );
     return;
   }
-  // 页面导航：网络优先（保证第一时间拿到最新版），8秒超时/断网回退缓存秒开
+  // 页面导航：缓存秒开（SWR）+ 后台拉新版入缓存；有新 SW 时页面弹「立即重启」。
+  // 之前网络优先导致弱网冷启动黑屏干等最长 8 秒，用户感知"卡住"。
   if (e.request.mode === "navigate" || /\.html?$/.test(u.split("?")[0]) || u.indexOf("manifest.webmanifest") >= 0) {
     e.respondWith(
-      new Promise(function (resolve) {
-        var done = false;
-        var t = setTimeout(function () { if (!done) { done = true; resolve(null); } }, 8000);
-        fetch(e.request, { cache: "reload" }).then(function (r) {
-          if (done) return;
-          done = true; clearTimeout(t);
+      caches.match(u).then(function (hit) {
+        var net = fetch(e.request, { cache: "reload" }).then(function (r) {
           if (r && r.ok) { try { caches.open(CACHE).then(function (c) { c.put(e.request, r.clone()); }); } catch (err) {} }
-          resolve(r);
-        }).catch(function () {
-          if (done) return;
-          done = true; clearTimeout(t);
-          resolve(null);
-        });
-      }).then(function (r) {
-        if (r) return r;
-        return caches.match(e.request).then(function (c) { return c || caches.match("./index.html"); });
+          return r;
+        }).catch(function () { return null; });
+        if (hit) return hit;                     // 有缓存：立即返回，后台静默更新
+        return net.then(function (r) { return r || caches.match("./index.html"); });
       })
     );
     return;
