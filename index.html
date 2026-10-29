@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="55">
+<meta name="appver" content="56">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -291,7 +291,8 @@
         <div class="mt">我的缓存 <small>无网络也能看 · 已下载到本机</small> <button class="mtbtn" id="dlClear">清空</button></div>
         <div id="dlBox"><div class="empty">还没有缓存的剧集</div></div>
         <div style="font-size:11px;color:#565c66;margin-top:8px;line-height:1.7">
-          缓存会占手机存储（一集约 100~500MB），需要 App 前台保持打开直到下载完成。系统空间不足时可能被清理。
+          8 路并行下载，屏幕自动常亮。iOS 不支持后台下载——切到别的 App 会暂停，回来点记录<b style="color:#ff8f1f">断点续传</b>即可，不会从头下。<br>
+          单集约 100~500MB：想省空间就在详情页选<b style="color:#ff8f1f">清晰度较低的那条线路</b>再缓存。系统空间不足时可能被清理。
         </div>
       </div>
       <div class="mineCard">
@@ -1627,58 +1628,123 @@
     return { segs: segs, key: key, subs: subs };
   }
 
-  function cacheEpisode(ep, meta) {
+  var wlSentinel = null;
+  function acquireWakeLock() {
+    try {
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        navigator.wakeLock.request("screen").then(function (s) {
+          wlSentinel = s;
+          s.addEventListener("release", function () { wlSentinel = null; });
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+  function releaseWakeLock() {
+    try { if (wlSentinel) { wlSentinel.release(); wlSentinel = null; } } catch (e) {}
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && window.__dlBusy) acquireWakeLock();
+  });
+
+  function cacheEpisode(ep, meta, resumeRec) {
     if (dlBusy()) { tip("已有缓存任务在进行，请等它完成"); return; }
-    var list = getDL();
     var id = ep.url;
-    if (list.some(function (x) { return x.u === id && x.done; })) { tip("这一集已经缓存过了"); return; }
-    if (!confirm("缓存这一集到本机？\n需要保持 App 打开直到完成，单集可能占 100~500MB 存储。")) return;
+    if (getDL().some(function (x) { return x.u === id && x.done; })) { tip("这一集已经缓存过了"); return; }
+    if (!resumeRec && !confirm("缓存这一集到本机？\n\n· 8 路并行下载，速度较快\n· 屏幕会自动保持常亮（iOS 不允许后台下载，切到别的 App 会暂停）\n· 中断后回来点「继续」可断点续传，不用从头下\n· 单集可能占 100~500MB 存储")) return;
 
     window.__dlBusy = true;
-    var title = (meta && meta.name ? meta.name + " " : "") + (ep.name || "剧集");
+    acquireWakeLock();
+    var title = resumeRec ? resumeRec.t : (meta && meta.vod_name ? meta.vod_name + " " : "") + (ep.name || "剧集");
     var btn = $("pDl");
-    btn.textContent = "0%";
     btn.disabled = true;
+    var t0 = Date.now();
 
-    fetch(ep.url, { cache: "reload" }).then(function (r) {
-      if (!r.ok) throw new Error("m3u8 " + r.status);
-      return r.text();
-    }).then(function (txt) {
-      if (txt.indexOf("#EXTM3U") < 0) throw new Error("不是有效m3u8");
-      var p = parseM3u8(txt, ep.url);
-      if (p.subs.length) {
-        // 主清单：取第一个子清单
-        return fetch(p.subs[0], { cache: "reload" }).then(function (r2) { return r2.text(); })
-          .then(function (t2) { return parseM3u8(t2, p.subs[0]); });
-      }
-      return p;
-    }).then(function (p) {
+    function savePartial(o) {
+      var rec = {
+        u: id, t: title, m3u8: ep.url, segs: o.segs, bytes: o.bytes, n: o.doneN,
+        totalN: o.total, prog: o.total ? Math.floor(o.doneN / o.total * 100) : 0,
+        done: false, ts: Date.now()
+      };
+      var l = getDL().filter(function (x) { return x.u !== id; });
+      l.unshift(rec); setDL(l.slice(0, 40));
+    }
+
+    var m3u8Promise;
+    if (resumeRec && resumeRec.segs && resumeRec.segs.length) {
+      m3u8Promise = Promise.resolve({ segs: resumeRec.segs, key: null });
+    } else {
+      m3u8Promise = fetch(ep.url, { cache: "reload" }).then(function (r) {
+        if (!r.ok) throw new Error("m3u8 " + r.status);
+        return r.text();
+      }).then(function (txt) {
+        if (txt.indexOf("#EXTM3U") < 0) throw new Error("不是有效m3u8");
+        var p = parseM3u8(txt, ep.url);
+        if (p.subs.length) {
+          return fetch(p.subs[0], { cache: "reload" }).then(function (r2) { return r2.text(); })
+            .then(function (t2) { return parseM3u8(t2, p.subs[0]); });
+        }
+        return p;
+      });
+    }
+
+    m3u8Promise.then(function (p) {
       if (!p.segs.length) throw new Error("清单无分片");
       if (p.key) throw new Error("该片源带加密，暂不支持缓存");
       return openDlCache().then(function (c) {
-        var total = p.segs.length, ok = 0, bytes = 0;
-        function step(i) {
-          if (i >= total) return ok;
-          return fetch(p.segs[i], { cache: "reload" }).then(function (r) {
-            if (!r.ok) throw new Error("分片" + i + " " + r.status);
-            return r.blob().then(function (b) {
-              bytes += b.size;
-              return c.put(p.segs[i], new Response(b, { headers: { "Content-Type": "video/mp2t" } }));
+        var total = p.segs.length;
+        var doneN = 0, newBytes = 0, skipped = 0, firstErr = null;
+        var CONC = 8;
+
+        function one(i) {
+          var u = p.segs[i];
+          // 断点续传：已在缓存里的分片直接跳过
+          return c.match(u).then(function (hit) {
+            if (hit) { skipped++; doneN++; return; }
+            return fetch(u, { cache: "reload" }).then(function (r) {
+              if (!r.ok) throw new Error("分片 " + (i + 1) + " HTTP " + r.status);
+              return r.blob();
+            }).then(function (b) {
+              newBytes += b.size;
+              return c.put(u, new Response(b, { headers: { "Content-Type": "video/mp2t" } }));
+            }).then(function () {
+              doneN++;
+              if (doneN % 4 === 0 || doneN === total) {
+                var pc = Math.floor(doneN / total * 100);
+                var sec = Math.max(1, (Date.now() - t0) / 1000);
+                var sp = newBytes / 1048576 / sec;
+                var left = Math.max(0, total - doneN);
+                var eta = sp > 0 ? Math.round(left * (newBytes / Math.max(1, doneN - skipped)) / 1048576 / sp) : 0;
+                var etaTxt = eta > 0 ? ("约剩 " + (eta >= 60 ? Math.floor(eta / 60) + "分" + (eta % 60) + "秒" : eta + "秒")) : "";
+                btn.textContent = pc + "%";
+                $("pTitle").textContent = "缓存中 " + pc + "% · " + fmtMB(newBytes) + " · " + sp.toFixed(1) + "MB/s" + (etaTxt ? " · " + etaTxt : "");
+                if (doneN % 20 === 0) savePartial({ segs: p.segs, bytes: newBytes, doneN: doneN, total: total });
+              }
             });
-          }).then(function () {
-            ok++;
-            if (ok % 5 === 0 || ok === total) {
-              var pc = Math.round(ok / total * 100);
-              btn.textContent = pc + "%";
-              tip("缓存中 " + pc + "%（" + ok + "/" + total + " 片 · " + fmtMB(bytes) + "）");
-            }
-            return step(i + 1);
           });
         }
-        return step(0).then(function (n) {
+
+        // 并发池：6 路同时下，任一失败记录错误但继续跑完已排队的
+        var cursor = 0;
+        function worker() {
+          if (cursor >= total) return Promise.resolve();
+          var i = cursor++;
+          return one(i).catch(function (e) {
+            if (!firstErr) firstErr = e;
+            doneN++; // 计已处理，避免进度卡住
+          }).then(worker);
+        }
+        var pool = [];
+        for (var k = 0; k < Math.min(CONC, total); k++) pool.push(worker());
+        return Promise.all(pool).then(function () {
+          if (firstErr) {
+            savePartial({ segs: p.segs, bytes: newBytes, doneN: doneN, total: total });
+            throw new Error(firstErr.message + "（已下部分保留，点「继续」续传）");
+          }
+          return { total: total, newBytes: newBytes, skipped: skipped };
+        }).then(function (res) {
           var rec = {
-            u: id, t: title, plat: meta && meta.plat ? meta.plat : "",
-            m3u8: ep.url, segs: p.segs, bytes: bytes, n: n, done: true, ts: Date.now()
+            u: id, t: title, m3u8: ep.url, segs: p.segs, bytes: res.newBytes, n: res.total,
+            done: true, ts: Date.now()
           };
           var l2 = getDL().filter(function (x) { return x.u !== id; });
           l2.unshift(rec); setDL(l2.slice(0, 40));
@@ -1686,16 +1752,20 @@
         });
       });
     }).then(function (rec) {
-      tip("✅ 缓存完成：" + rec.t + "（" + fmtMB(rec.bytes) + "），可在「我的 → 我的缓存」离线观看");
+      var sec = Math.max(1, (Date.now() - t0) / 1000);
+      tip("✅ 缓存完成：" + rec.t + " · " + fmtMB(rec.bytes) + " · 用时 " + Math.round(sec) + "秒，可在「我的 → 我的缓存」离线看");
       btn.textContent = "已缓存";
+      $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || "剧集");
       renderDL();
     }).catch(function (e) {
-      tip("缓存失败：" + (e && e.message ? e.message : "网络错误") + "（可重试）");
-      btn.textContent = "缓存";
+      tip("缓存中断：" + (e && e.message ? e.message : "网络错误"));
+      btn.textContent = "继续";
+      renderDL();
     }).then(function () {
       window.__dlBusy = false;
       btn.disabled = false;
-      setTimeout(function () { if (btn.textContent === "已缓存") btn.textContent = "缓存"; }, 3000);
+      releaseWakeLock();
+      setTimeout(function () { if (btn.textContent === "已缓存" || btn.textContent === "继续") btn.textContent = "缓存"; }, 4000);
     });
   }
 
@@ -1705,14 +1775,39 @@
     if (/\.m3u8/i.test(ep.url) === false) { tip("该线路不是标准切片流，无法缓存"); return; }
     cacheEpisode(ep, state.curRow);
   };
+  function resumeDl(rec) {
+    cacheEpisode({ url: rec.m3u8, name: rec.t }, null, rec);
+  }
 
   /* ---------- 我的缓存列表 + 离线播放 ---------- */
   function renderDL() {
     var box = $("dlBox");
     if (!box) return;
-    var list = getDL().filter(function (x) { return x.done; });
-    if (!list.length) { box.innerHTML = '<div class="empty">还没有缓存的剧集</div>'; return; }
+    var all = getDL();
+    var list = all.filter(function (x) { return x.done; });
+    var parts = all.filter(function (x) { return !x.done; });
+    if (!list.length && !parts.length) { box.innerHTML = '<div class="empty">还没有缓存的剧集</div>'; return; }
     box.innerHTML = "";
+    // 未完成（断点续传）排最前
+    parts.forEach(function (d) {
+      var row = document.createElement("div");
+      row.className = "frow";
+      row.innerHTML = '<img alt="" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 64 64\'%3E%3Crect width=\'64\' height=\'64\' rx=\'14\' fill=\'%2322261a\'/%3E%3Cpath d=\'M32 14 v20 l14 8\' stroke=\'%23ff8f1f\' stroke-width=\'5\' fill=\'none\'/%3E%3C/svg%3E"><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
+      row.querySelector(".fn").textContent = d.t + "（未完成）";
+      row.querySelector(".fm").innerHTML = "<span style='color:#ff8f1f'>已下 " + (d.prog || 0) + "% · 点此继续</span>";
+      row.querySelector(".fmain").onclick = function () { resumeDl(d); };
+      row.querySelector(".fx").onclick = function (ev) {
+        ev.stopPropagation();
+        if (!confirm("放弃这个未完成的缓存？")) return;
+        openDlCache().then(function (c) {
+          return Promise.all((d.segs || []).map(function (s) { return c.delete(s).catch(function () {}); }));
+        }).then(function () {
+          setDL(getDL().filter(function (x) { return x.u !== d.u; }));
+          renderDL();
+        });
+      };
+      box.appendChild(row);
+    });
     list.forEach(function (d) {
       var row = document.createElement("div");
       row.className = "frow";
