@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="48">
+<meta name="appver" content="49">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -1584,8 +1584,9 @@
     var line = document.getElementById("verLine");
     function render(ready) {
       if (!line) return;
-      if (ready && ready !== pv) line.innerHTML = "版本：本页 v" + pv + " · <b style='color:#ff8f1f'>新版 v" + ready + " 已就绪，重开App生效</b>";
-      else line.textContent = "版本：v" + pv + (ready ? " · 已是最新" : "");
+      // 就绪版本号大于本页版本才算"有新版"（缓存桶更新慢于页面时 ready 会偏小，钳制避免误报）
+      if (ready && +ready > +pv) line.innerHTML = "版本：本页 v" + pv + " · <b style='color:#ff8f1f'>新版 v" + ready + " 已就绪，重开App生效</b>";
+      else line.textContent = "版本：v" + pv + " · 已是最新";
     }
     if (window.caches && caches.keys) {
       caches.keys().then(function (ks) {
