@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="70">
+<meta name="appver" content="71">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -705,9 +705,12 @@
       ["吞噬星空", "吞噬星空"], ["神印王座", "神印王座"], ["火影", "火影忍者"],
       ["海贼", "海贼王"], ["柯南", "名侦探柯南"], ["甄嬛", "甄嬛传"],
       ["三国", "三国演义"], ["西游", "西游记"], ["水浒", "水浒传"], ["红楼", "红楼梦"],
-      ["三体", "三体"], ["狂飙", "狂飙"], ["雪中", "雪中悍刀行"], ["陈情令", "陈情令"]
+      ["三体", "三体"], ["狂飙", "狂飙"], ["雪中", "雪中悍刀行"], ["陈情令", "陈情令"],
+      ["动漫", "动画"], ["搞笑", "喜剧"], ["未来", "科幻"], ["惊悚", "恐怖"], ["警匪", "犯罪"]
     ]
   };
+  var OPS_PIN = [];   // 运营置顶片名（空数组=不启用；填入片名后首页焦点/推荐加权）
+  function opsBoost(row) { return OPS_PIN.indexOf(row.vod_name) >= 0 ? 300 : 0; }
   try {
     var _pc = JSON.parse(localStorage.getItem("m_pconf") || "{}");
     Object.keys(_pc).forEach(function (k) { if (k in PCONF) PCONF[k] = _pc[k]; });
@@ -1116,6 +1119,13 @@
     getFollow().forEach(function (f) { add(f.type, 3, f.t); });
     getFav().forEach(function (f) { add(f.type, 2, f.t); });
     getWH().forEach(function (h) { add(h.type, 1.5, h.t); });
+    var prog = getProg();
+    Object.keys(prog).forEach(function (k) {
+      var p = prog[k];
+      if (!p || !p.type) return;
+      var ratio = p.dur ? Math.min(1, (p.sec || 0) / p.dur) : (p.done ? 1 : 0);
+      add(p.type, 1 + ratio * 1.5, p.t);
+    });
     return w;
   }
 
@@ -1275,7 +1285,9 @@
     var pool = homePool.filter(function (row) { return !isBlocked(row); });
     if (!pool.length) { block.appendChild(skGrid(9)); return; }
     // 0 焦点轮播（综合热度前 5，横向 snap 滑动）
-    var heroRows = dedupe(pool.slice()).sort(byHotDesc).slice(0, 5);
+    var heroRows = dedupe(pool.slice()).sort(function (a, b) {
+      return (opsBoost(b) - opsBoost(a)) || byHotDesc(a, b);
+    }).slice(0, 5);
     if (heroRows.length >= 3) {
       var hrEl = document.createElement("div"); hrEl.className = "heroRow"; hrEl.id = "heroRow";
       heroRows.forEach(function (row) {
@@ -1366,7 +1378,7 @@
     }).map(function (row) {
       var tt = row.type_name || "", tw = 0;
       Object.keys(taste).forEach(function (k) { if (tt.indexOf(k) >= 0 || k.indexOf(tt) >= 0) tw = Math.max(tw, taste[k]); });
-      return { row: row, s: tw * 120 + bayesScore(row) * 12 + Math.log10(1 + hotScore(row)) * 40 - softPenalty(row) };
+      return { row: row, s: tw * 120 + bayesScore(row) * 12 + Math.log10(1 + hotScore(row)) * 40 - softPenalty(row) + opsBoost(row) };
     }).sort(function (a, b) { return b.s - a.s; });
     var capT = {}, recs = [];
     scoredRec.forEach(function (it) {
@@ -2642,7 +2654,7 @@
       var prog = getProg();
       var pid = String(state.curRow.vod_id);
       var oldp = prog[pid] || {};
-      prog[pid] = { ep: i + 1, name: ep.name || ("第" + (i + 1) + "集"), t: Date.now(), wsec: oldp.wsec || 0, sec: oldp.ep === i + 1 ? (oldp.sec || 0) : 0 };
+      prog[pid] = { ep: i + 1, name: ep.name || ("第" + (i + 1) + "集"), type: state.curRow.type_name || oldp.type || "", t: Date.now(), wsec: oldp.wsec || 0, sec: oldp.ep === i + 1 ? (oldp.sec || 0) : 0, dur: oldp.ep === i + 1 ? (oldp.dur || 0) : 0, done: oldp.ep === i + 1 ? (oldp.done || 0) : 0 };
       setProg(prog);
       state.resumeSec = prog[pid].sec;
       var wh = getWH().filter(function (x) { return x.id !== String(state.curRow.vod_id); });
@@ -3095,6 +3107,12 @@
     try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } catch (e) {}
   });
   pv.addEventListener("ended", function () {
+    if (window.plyMode === "ep" && state.curRow) {
+      try {
+        var prog = getProg(), p = prog[String(state.curRow.vod_id)];
+        if (p) { p.done = 1; p.sec = p.dur || p.sec; setProg(prog); }
+      } catch (e) {}
+    }
     if (window.plyMode !== "ep" || !state.curRow || !autoNext) return;
     if (state.epIdx + 1 >= state.eps.length) { tip("已是最后一集"); return; }
     showNext(state.epIdx + 1);
@@ -3122,7 +3140,11 @@
     pv._ls = now;
     try {
       var prog = getProg(); var p = prog[String(state.curRow.vod_id)];
-      if (p && p.ep === state.epIdx + 1) { p.sec = Math.floor(pv.currentTime); setProg(prog); }
+      if (p && p.ep === state.epIdx + 1) {
+        p.sec = Math.floor(pv.currentTime);
+        if (isFinite(pv.duration) && pv.duration > 0) { p.dur = Math.floor(pv.duration); p.pct = Math.min(1, pv.currentTime / pv.duration); }
+        setProg(prog);
+      }
     } catch (e) {}
   });
   function saveSec() {
@@ -3130,7 +3152,11 @@
     try {
       if (directMode && state.curRow && v.currentTime > 1) {
         var prog = getProg(); var p = prog[String(state.curRow.vod_id)];
-        if (p && p.ep === state.epIdx + 1) { p.sec = Math.floor(v.currentTime); setProg(prog); }
+        if (p && p.ep === state.epIdx + 1) {
+          p.sec = Math.floor(v.currentTime);
+          if (isFinite(v.duration) && v.duration > 0) { p.dur = Math.floor(v.duration); p.pct = Math.min(1, v.currentTime / v.duration); }
+          setProg(prog);
+        }
       }
     } catch (e) {}
   }
