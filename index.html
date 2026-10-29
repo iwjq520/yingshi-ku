@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="61">
+<meta name="appver" content="62">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -146,6 +146,7 @@
     z-index: 1200; background: #262a32; color: #f2f3f5; border: none;
     border-radius: 8px; padding: 9px 16px; font-size: 13px; display: none; max-width: 86vw;
     box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+  #tip.inply { top: calc(env(safe-area-inset-top) + 56px); }
 
   #pull { position: fixed; top: calc(env(safe-area-inset-top) + 4px); left: 50%;
     transform: translate(-50%, -80px); z-index: 1100;
@@ -297,6 +298,27 @@
   #pTap button { padding: 12px 22px; font-size: 14px; border-radius: 999px; border: none;
     background: #ff8f1f; color: #201004; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
   .spdrow .div { width: 1px; background: #2a2f37; margin: 4px; flex-shrink: 0; }
+
+  /* ===== 阶段1-2：播放器面板 / 沉浸全屏 / 手势 HUD ===== */
+  #ply.fs .bar, #ply.fs .proutes, #ply.fs .spdrow, #ply.fs .eplist, #ply.fs #pNext { display: none !important; }
+  #pFsExit { position: absolute; right: 10px; top: calc(env(safe-area-inset-top) + 10px); z-index: 8; display: none;
+    width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(20,22,27,.72); color: #e8eaee; font-size: 15px; }
+  #ply.fs #pFsExit { display: block; }
+  #pSheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; background: #14161b;
+    border-radius: 14px 14px 0 0; padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+    transform: translateY(105%); transition: transform .22s ease; }
+  #pSheet.on { transform: translateY(0); }
+  #pSheet .pst { font-size: 12px; color: #7d838c; margin: 0 2px 10px; }
+  #pSheet .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #pSheet .pgrid button { padding: 12px 6px; font-size: 12.5px; border-radius: 9px; border: none;
+    background: #1e2228; color: #d8dbe0; }
+  #pSheet .pgrid button:disabled { color: #4a5058; }
+  #pHud { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 7; display: none;
+    background: rgba(15,17,20,.86); color: #fff; font-size: 14px; font-weight: 600; padding: 10px 16px; border-radius: 10px; }
+  #pShot { position: absolute; inset: 0; z-index: 10; display: none; background: rgba(0,0,0,.92);
+    align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 16px; }
+  #pShot img { max-width: 100%; max-height: 74vh; border-radius: 6px; }
+  #pShot small { color: #9aa0a8; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -448,7 +470,8 @@
       <button id="pDirect" title="系统播放器直连源站，快进加载更快">直连</button>
       <button id="pFitBtn" class="mini" title="画面比例：智能（点此切换）">智能</button>
       <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）">网页</button>
-      <button id="pDl" title="把这一集存到本机，无网络也能看">缓存</button>
+      <button id="pDl" style="display:none">缓存</button>
+      <button id="pMore" class="mini" title="更多播放设置">⋯</button>
     </div>
     <div class="proutes" id="pRoutes" style="display:none"></div>
     <div class="proutes" id="pFitRow" style="display:none"></div>
@@ -458,6 +481,10 @@
     <div class="eplist" id="pEplist" style="display:none"></div>
     <div id="pNext"></div>
     <div id="pTap"><button id="pTapBtn">点此播放</button></div>
+    <div id="pFsExit">✕</div>
+    <div id="pHud"></div>
+    <div id="pSheet"><div class="pst">播放设置</div><div class="pgrid" id="pSheetGrid"></div></div>
+    <div id="pShot"><img id="pShotImg" alt=""><small>长按图片可保存到相册</small><button id="pShotClose" style="padding:9px 18px;border:none;border-radius:8px;background:#232730;color:#c9ced6">关闭</button></div>
   </div>
 
 <script>
@@ -477,7 +504,11 @@
       "https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"
     ],
     hlsBuffer: { maxBufferLength: 30, maxMaxBufferLength: 60, maxBufferSize: 60e6 },
-    keyboard: true                 // PC 快捷键
+    keyboard: true,               // PC 快捷键
+    gestureSeek: true,             // iOS 左右滑调进度
+    gestureSeekStep: 10,           // 每格跳秒数
+    gestureSeekPx: 60,             // 每格所需横向像素
+    gestureHintVolume: true        // 上下滑时提示用系统音量键
   };
   try {
     var _pc = JSON.parse(localStorage.getItem("m_pconf") || "{}");
@@ -525,7 +556,9 @@
   var tipTimer = null;
   function tip(m) {
     var t = $("tip");
-    t.textContent = m; t.style.display = "block";
+    t.textContent = m;
+    t.classList.toggle("inply", $("ply") && $("ply").style.display === "flex");
+    t.style.display = "block";
     clearTimeout(tipTimer);
     tipTimer = setTimeout(function () { t.style.display = "none"; }, 2800);
   }
@@ -2132,14 +2165,166 @@
       }
     } catch (e) {}
   }
-  function toggleFs() {
-    var el = $("ply");
-    if (!document.fullscreenElement) {
-      if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
-      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-      else tip("iOS 请点视频右下角的全屏按钮");
-    } else if (document.exitFullscreen) document.exitFullscreen();
+  /* ---------- 全屏 / 画中画 / 复制 / 截图 ---------- */
+  function toggleWebFs() {
+    var p = $("ply");
+    var on = p.classList.toggle("fs");
+    if (on) closeSheet();
+    return on;
   }
+  function nativeFullscreen() {
+    var v = $("pVideo"), p = $("ply");
+    if (v.webkitEnterFullscreen) { try { v.webkitEnterFullscreen(); return; } catch (e) {} }
+    if (document.fullscreenElement) { if (document.exitFullscreen) document.exitFullscreen(); return; }
+    if (p.requestFullscreen) { p.requestFullscreen().catch(function () { tip("该浏览器不支持全屏，已用网页全屏"); toggleWebFs(); }); return; }
+    toggleWebFs();
+  }
+  function togglePip() {
+    var v = $("pVideo");
+    if (document.pictureInPictureElement) { document.exitPictureInPicture().catch(function () {}); return; }
+    if (document.pictureInPictureEnabled && v.requestPictureInPicture) {
+      v.requestPictureInPicture().catch(function () { tip("画中画启动失败"); });
+      return;
+    }
+    if (v.webkitSetPresentationMode) {
+      try {
+        v.webkitSetPresentationMode(v.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
+        return;
+      } catch (e) {}
+    }
+    tip("iPhone 不支持画中画，iPad/Mac 可用");
+  }
+  function legacyCopy(u) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = u; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand("copy"); ta.remove(); return ok;
+    } catch (e) { return false; }
+  }
+  function curPlayUrl() {
+    if (window.plyMode === "parse") return $("pFrame").src || "";
+    var ep = state.eps[state.epIdx];
+    return (ep && ep.url) || "";
+  }
+  function copyLink() {
+    var u = curPlayUrl();
+    if (!u || u.indexOf("http") !== 0) { tip("当前没有可复制的播放地址"); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(u).then(function () { tip("播放链接已复制"); })
+        .catch(function () { if (legacyCopy(u)) tip("播放链接已复制"); else tip("复制失败，请长按视频地址手动复制"); });
+    } else if (legacyCopy(u)) tip("播放链接已复制");
+    else tip("复制失败，请长按视频地址手动复制");
+  }
+  function takeShot() {
+    var v = $("pVideo");
+    if (!v.videoWidth) { tip("画面未就绪"); return; }
+    var c = document.createElement("canvas"), url = "";
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    try {
+      c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+      url = c.toDataURL("image/png");
+    } catch (e) { tip("受跨域限制无法截屏，请用系统截屏"); return; }
+    if (isIOS()) {
+      $("pShotImg").src = url;
+      $("pShot").style.display = "flex";
+    } else {
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = ((state.curRow && state.curRow.vod_name) || "shot") + "_" + Math.floor(v.currentTime) + "s.png";
+      document.body.appendChild(a); a.click(); a.remove();
+      tip("截图已保存");
+    }
+  }
+  $("pShotClose").onclick = function () { $("pShot").style.display = "none"; $("pShotImg").src = ""; };
+  $("pFsExit").onclick = function () { $("ply").classList.remove("fs"); };
+  document.addEventListener("fullscreenchange", function () {
+    if (!document.fullscreenElement) $("ply").classList.remove("fs");
+  });
+
+  /* ---------- 播放设置面板 ---------- */
+  var sheetOpen = false;
+  function openSheet() { sheetOpen = true; $("pSheet").classList.add("on"); }
+  function closeSheet() { sheetOpen = false; $("pSheet").classList.remove("on"); }
+  function renderSheet() {
+    var g = $("pSheetGrid"), v = $("pVideo");
+    g.innerHTML = "";
+    function item(label, fn, disabled) {
+      var b = document.createElement("button");
+      b.textContent = label;
+      b.disabled = !!disabled;
+      b.onclick = function () { if (!disabled) fn(); };
+      g.appendChild(b);
+    }
+    var fsOn = $("ply").classList.contains("fs");
+    item(fsOn ? "退出网页全屏" : "网页全屏", function () { toggleWebFs(); renderSheet(); });
+    item("原生全屏", function () { closeSheet(); nativeFullscreen(); });
+    var pipOk = !!(document.pictureInPictureEnabled || v.webkitSetPresentationMode);
+    item("画中画", function () { closeSheet(); togglePip(); }, !pipOk);
+    item("复制链接", function () { closeSheet(); copyLink(); });
+    item("截图", function () { closeSheet(); takeShot(); }, !v.videoWidth);
+    item("缓存本集", function () { closeSheet(); $("pDl").click(); }, window.plyMode === "parse");
+    item("倍速/清晰度", function () {
+      closeSheet();
+      var b = $("pEplist");
+      var open = b.style.display !== "flex";
+      b.style.display = open ? "flex" : "none";
+      $("pSpeed").style.display = (open && directMode) ? "flex" : "none";
+      if (open) renderSpd();
+    });
+    item("网页打开", function () { closeSheet(); $("pWeb").click(); });
+  }
+  $("pMore").onclick = function () {
+    if (sheetOpen) { closeSheet(); return; }
+    renderSheet();
+    openSheet();
+  };
+  $("ply").addEventListener("click", function (e) {
+    if (!sheetOpen) return;
+    if (e.target.closest && e.target.closest("#pSheet, #pMore")) return;
+    closeSheet();
+  });
+
+  /* ---------- iOS 手势：左右滑调进度（音量 iOS 不允许 JS 修改，仅提示） ---------- */
+  var gs = { on: false, x0: 0, y0: 0, acc: 0, hinted: false };
+  function hudMsg(t) { var h = $("pHud"); h.textContent = t; h.style.display = "block"; }
+  function hudOff() { setTimeout(function () { $("pHud").style.display = "none"; }, 550); }
+  function bindGestures() {
+    var v = $("pVideo");
+    v.addEventListener("touchstart", function (e) {
+      if (!PCONF.gestureSeek || window.plyMode !== "ep" || !directMode) return;
+      var t = e.touches[0];
+      if (t.clientY > window.innerHeight - 74) return;   // 避开原生控制条
+      gs.on = true; gs.x0 = t.clientX; gs.y0 = t.clientY; gs.acc = 0; gs.hinted = false;
+    }, { passive: true });
+    v.addEventListener("touchmove", function (e) {
+      if (!gs.on) return;
+      var t = e.touches[0], dx = t.clientX - gs.x0, dy = t.clientY - gs.y0;
+      if (Math.abs(dy) > 42 && Math.abs(dy) > Math.abs(dx) * 1.4) {
+        if (!gs.hinted) { gs.hinted = true; hudMsg("iOS 请用侧边音量键"); hudOff(); }
+        return;
+      }
+      if (Math.abs(dx) < 24 || Math.abs(dx) < Math.abs(dy)) return;
+      if (e.cancelable) e.preventDefault();
+      var step = Math.round(dx / PCONF.gestureSeekPx);
+      if (step !== gs.acc) {
+        gs.acc = step;
+        var sec = step * PCONF.gestureSeekStep;
+        hudMsg((sec > 0 ? "快进 " : "快退 ") + Math.abs(sec) + " 秒");
+      }
+    }, { passive: false });
+    v.addEventListener("touchend", function () {
+      if (!gs.on) return;
+      gs.on = false;
+      if (gs.acc) {
+        var sec = gs.acc * PCONF.gestureSeekStep;
+        try { v.currentTime = Math.max(0, Math.min(v.duration || 1e9, v.currentTime + sec)); } catch (e) {}
+        hudOff();
+      }
+    });
+  }
+  bindGestures();
+
   /* PC 快捷键（iOS 无键盘，自动无效） */
   document.addEventListener("keydown", function (e) {
     if (!PCONF.keyboard || $("ply").style.display !== "flex") return;
@@ -2154,7 +2339,7 @@
     else if (k === "ArrowUp") { e.preventDefault(); v.volume = Math.min(1, v.volume + 0.1); tip("音量 " + Math.round(v.volume * 100) + "%"); }
     else if (k === "ArrowDown") { e.preventDefault(); v.volume = Math.max(0, v.volume - 0.1); tip("音量 " + Math.round(v.volume * 100) + "%"); }
     else if (k === "m" || k === "M") { v.muted = !v.muted; tip(v.muted ? "已静音" : "取消静音"); }
-    else if (k === "f" || k === "F") { toggleFs(); }
+    else if (k === "f" || k === "F") { nativeFullscreen(); }
   });
   window.addEventListener("pagehide", function () { try { saveSec(); } catch (e) {} });
   $("pClose").onclick = function () {
@@ -2164,6 +2349,10 @@
     hideNext();
     hideTap();
     destroyEngine();
+    closeSheet();
+    $("ply").classList.remove("fs");
+    $("pHud").style.display = "none";
+    $("pShot").style.display = "none";
     preloadMark = "";
     $("ply").style.display = "none";
     $("pRoutes").style.display = "none";
@@ -2312,6 +2501,8 @@
     var v = $("pVideo");
     hideTap();
     destroyEngine();
+    closeSheet();
+    $("ply").classList.remove("fs");
     try { v.pause(); } catch (e) {}
     v.removeAttribute("src"); v.load(); v.style.display = "none";
     var f = $("pFrame");
@@ -2675,6 +2866,8 @@
     window.plyParseU = d.m3u8;
     destroyEngine();
     hideTap();
+    closeSheet();
+    $("ply").classList.remove("fs");
     try { $("pVideo").pause(); } catch (e) {}
     $("pVideo").style.display = "none";
     $("pEplist").style.display = "none";
