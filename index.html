@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="71">
+<meta name="appver" content="72">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -17,6 +17,14 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" href="splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" href="splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" href="splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" href="splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" href="splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" href="splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" href="splash-2048x2732.png">
 <link rel="preconnect" href="https://jx.1ljx.com" crossorigin>
 <link rel="dns-prefetch" href="https://jx.1ljx.com">
 <style>
@@ -437,6 +445,15 @@
   body.light .bsTitle { color: #171a20; }
   body.light .bsBtn { background: #eceef2; color: #3a4048; }
   @media (min-width: 768px) { #blockSheet { align-items: center; } .bsBox { border-radius: 14px; margin: 0 14px; } }
+  #updateModal { position: fixed; inset: 0; z-index: 1300; background: rgba(0,0,0,.55); display: none;
+    align-items: center; justify-content: center; padding: 24px; }
+  .umBox { width: 100%; max-width: 360px; background: #171a20; border-radius: 14px; padding: 18px; text-align: center; }
+  .umTitle { font-size: 16px; font-weight: 600; color: #f2f3f5; }
+  .umDesc { font-size: 12px; color: #7d838c; line-height: 1.7; margin: 8px 0 14px; }
+  .umGo { display: block; width: 100%; padding: 11px; border: none; border-radius: 8px; background: #ff8f1f; color: #201004; font-size: 14px; font-weight: 600; }
+  .umLater { display: block; width: 100%; padding: 10px; border: none; background: transparent; color: #7d838c; font-size: 13px; }
+  body.light .umBox { background: #fff; }
+  body.light .umTitle { color: #171a20; }
 
   /* ===== 阶段2A：PC 多列自适应（移动端 3 列保持不变） ===== */
   @media (min-width: 768px) {
@@ -467,6 +484,12 @@
 </head>
 <body>
   <div id="tip"></div>
+  <div id="updateModal"><div class="umBox">
+    <div class="umTitle">新版本已就绪</div>
+    <div class="umDesc">当前页面还是旧版，重启后使用最新版。</div>
+    <button class="umGo" id="umReload">立即重启</button>
+    <button class="umLater" id="umLater">稍后</button>
+  </div></div>
   <div id="blockSheet"><div class="bsBox">
     <div class="bsTitle">不感兴趣</div>
     <div class="bsName" id="bsName"></div>
@@ -683,6 +706,7 @@
     progressSaveSec: 4,            // 进度落盘防抖间隔
     autoplayTapFallback: true,     // 自动播放被策略拦截时就地提示"点此播放"
     hlsCdns: [                     // 桌面端 HLS 回退库（按顺序尝试，国内 CDN 优先）
+      "hls.min.js",                // 同源自托管，离线可用
       "https://cdn.bootcdn.net/ajax/libs/hls.js/1.5.15/hls.min.js",
       "https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"
     ],
@@ -3888,6 +3912,7 @@
       btn.textContent = "已缓存";
       $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || "剧集");
       renderDL();
+      checkStorageQuota();
     }).catch(function (e) {
       tip("缓存中断：" + (e && e.message ? e.message : "网络错误"));
       btn.textContent = "继续";
@@ -4073,6 +4098,9 @@
   }
 
   /* ---------- 启动 ---------- */
+  function showUpdateModal() { var m = $("updateModal"); if (m) m.style.display = "flex"; }
+  $("umReload").onclick = function () { location.reload(); };
+  $("umLater").onclick = function () { $("updateModal").style.display = "none"; };
   /* 版本显示与更新提示：本页版本取 meta，已就绪版本取缓存名；新版到位时提示重开生效 */
   (function () {
     var pv = (document.querySelector('meta[name="appver"]') || {}).content || "?";
@@ -4094,7 +4122,7 @@
       if ("serviceWorker" in navigator) {
         var had = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.addEventListener("controllerchange", function () {
-          if (had) tip("已更新到最新版本，重开App生效");
+          if (had) showUpdateModal();
           had = true;
         });
       }
@@ -4168,11 +4196,22 @@
     }, 60);
   });
 
+  function checkStorageQuota() {
+    if (!navigator.storage || !navigator.storage.estimate) return;
+    navigator.storage.estimate().then(function (es) {
+      var u = es.usage || 0, q = es.quota || 0;
+      if (!q || u / q <= 0.8) return;
+      try { if (sessionStorage.getItem("m_qwarn")) return; sessionStorage.setItem("m_qwarn", "1"); } catch (e) {}
+      tip("本机存储已用 " + Math.round(u / q * 100) + "%，建议到「我的 → 我的缓存」清理");
+    }).catch(function () {});
+  }
   renderCatChips();
   renderHome();
   loadHome(false);
   updateFollowDot();
   applySettings();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) {}
+  checkStorageQuota();
   var deepId = "";
   try { deepId = new URLSearchParams(location.search).get("id") || ""; } catch (e) {}
   if (deepId) setTimeout(function () { openDetailById(deepId); }, 350);
