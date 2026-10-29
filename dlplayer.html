@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN" style="background:#000">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>离线播放</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #000; height: 100%; overflow: hidden; }
+  #v { width: 100%; height: 100%; display: block; background: #000; }
+  #msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #8a9099; font: 14px -apple-system, "PingFang SC", sans-serif; padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<video id="v" playsinline webkit-playsinline controls preload="auto"></video>
+<div id="msg">加载中…</div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+<script>
+(function () {
+  var u = new URLSearchParams(location.search).get("u");
+  var v = document.getElementById("v");
+  var msg = document.getElementById("msg");
+  if (!u) { msg.textContent = "缺少播放地址"; return; }
+  function done() { msg.style.display = "none"; }
+  function fail(t) { msg.textContent = t; }
+
+  // 优先用原生 HLS（iOS 17.4+ 支持从 Cache Storage 提供分片）
+  if (v.canPlayType("application/vnd.apple.mpegurl")) {
+    v.src = u;
+    v.addEventListener("loadedmetadata", done);
+    v.addEventListener("error", function () {
+      // 原生失败再试 hls.js
+      if (window.Hls && window.Hls.isSupported()) mse();
+      else fail("这个视频格式无法在本机播放");
+    });
+    var p = v.play(); if (p && p.catch) p.catch(function () {});
+    return;
+  }
+  function mse() {
+    var hls = new Hls({ enableWorker: true, lowLatencyMode: false, xhrSetup: function (xhr) { xhr.withCredentials = false; } });
+    hls.on(Hls.Events.MANIFEST_PARSED, function () {
+      done();
+      var p = v.play(); if (p && p.catch) p.catch(function () {});
+    });
+    hls.on(Hls.Events.ERROR, function (e, data) {
+      if (data && data.fatal) {
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+        else fail("离线播放失败：" + (data.details || "未知错误"));
+      }
+    });
+    hls.loadSource(u);
+    hls.attachMedia(v);
+  }
+  if (window.Hls && window.Hls.isSupported()) mse();
+  else fail("浏览器不支持播放该格式");
+})();
+</script>
+</body>
+</html>
