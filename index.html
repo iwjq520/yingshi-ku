@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="62">
+<meta name="appver" content="63">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -17,14 +17,18 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { background: #0f1114; }
+  html { -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
   body {
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    color: #f2f3f5; min-height: 100dvh;
+    color: #f2f3f5; min-height: 100vh; min-height: 100dvh;
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
+    touch-action: manipulation;   /* 禁双击缩放/300ms 延迟，保留滑动 */
   }
+  body.lock { position: fixed; left: 0; right: 0; width: 100%; overflow: hidden; }
   ::-webkit-scrollbar { display: none; }
 
-  .sbar { position: sticky; top: 0; z-index: 20; padding: calc(env(safe-area-inset-top) + 8px) 14px 8px;
+  .sbar { position: sticky; top: 0; z-index: 20;
+    padding: calc(env(safe-area-inset-top) + 8px) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));
     background: rgba(15,17,20,.96); }
   .sbar .box { display: flex; align-items: center; gap: 8px; background: #1e2228;
     border-radius: 999px; padding: 9px 15px; cursor: pointer; }
@@ -32,14 +36,14 @@
   .sbar .box svg { width: 16px; height: 16px; color: #6a7077; flex-shrink: 0; }
 
   .row { display: flex; gap: 8px; margin: 10px 2px 4px; }
-  .row input { flex: 1; min-height: 42px; padding: 8px 16px; font-size: 15px; color: #f2f3f5;
+  .row input { flex: 1; min-height: 42px; padding: 8px 16px; font-size: 16px; color: #f2f3f5;
     background: #1e2228; border: 1px solid #2a2f37; border-radius: 999px; outline: none;
     -webkit-appearance: none; appearance: none; }
   .row input::-webkit-search-decoration, .row input::-webkit-search-cancel-button { -webkit-appearance: none; }
   .row .go { padding: 0 18px; font-size: 14px; border-radius: 999px; border: none;
     background: #ff8f1f; color: #201004; font-weight: 600; cursor: pointer; }
 
-  .view { display: none; padding: 2px 14px 16px; }
+  .view { display: none; padding: 2px max(14px, env(safe-area-inset-right)) 16px max(14px, env(safe-area-inset-left)); }
   .view.on { display: block; }
   .status { font-size: 11px; color: #5f6570; min-height: 16px; margin: 6px 2px; }
   .err { color: #ff7a7a; font-size: 12px; min-height: 16px; margin: 4px 2px; }
@@ -85,7 +89,7 @@
   .mineCard .mt { font-size: 14px; font-weight: 600; color: #f2f3f5; margin-bottom: 10px; }
   .mineCard .mt small { font-size: 11px; color: #5f6570; font-weight: 400; margin-left: 8px; }
   .prow { display: flex; gap: 8px; margin-bottom: 8px; }
-  .prow input { flex: 1; min-width: 0; min-height: 42px; padding: 8px 12px; font-size: 14px; color: #f2f3f5;
+  .prow input { flex: 1; min-width: 0; min-height: 42px; padding: 8px 12px; font-size: 16px; color: #f2f3f5;
     background: #1e2228; border: none; border-radius: 8px; outline: none; }
   .prow .pclr { min-width: 40px; font-size: 17px; border-radius: 8px; border: none;
     background: #232730; color: #9aa1ab; }
@@ -102,8 +106,8 @@
   .about { font-size: 11px; color: #565c66; line-height: 1.9; }
 
   #detail { position: fixed; inset: 0; z-index: 60; background: #0f1114; display: none;
-    overflow-y: auto; -webkit-overflow-scrolling: touch;
-    padding: calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 20px); }
+    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    padding: calc(env(safe-area-inset-top) + 10px) max(14px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 20px) max(14px, env(safe-area-inset-left)); }
   #detail .back { font-size: 26px; line-height: 1; color: #e8eaee; cursor: pointer; padding: 2px 8px 8px 0; display: inline-block; }
   .dhead { display: flex; gap: 13px; margin-bottom: 12px; }
   .dhead img { width: 104px; height: 144px; border-radius: 8px; object-fit: cover; background: #1a1d23; flex-shrink: 0; }
@@ -127,7 +131,7 @@
     background: #0c0d10; }
   #ply .bar b { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   #ply .bar button { padding: 7px 10px; font-size: 13px; border-radius: 7px; border: none; flex-shrink: 0;
-    background: #1e2228; color: #c9ced6; }
+    background: #1e2228; color: #c9ced6; min-height: 36px; }
   #ply .bar button.mini { padding: 7px 8px; }
   #ply iframe { flex: 1; width: 100%; border: none; background: #000; }
   #ply video { flex: 1; width: 100%; background: #000; object-fit: contain; min-height: 0; }
@@ -136,9 +140,11 @@
 
   #tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
     display: flex; background: #0c0d10; border-top: 1px solid #1f232a;
-    padding-bottom: env(safe-area-inset-bottom); }
-  #tabbar .tb { flex: 1; text-align: center; padding: 7px 0 6px; cursor: pointer;
-    color: #6a7077; font-size: 10px; }
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  body.kb #tabbar { display: none; }
+  #tabbar .tb { flex: 1; text-align: center; padding: 9px 0 6px; cursor: pointer;
+    color: #6a7077; font-size: 10px; min-height: 48px; }
   #tabbar .tb svg { display: block; width: 22px; height: 22px; margin: 0 auto 2px; }
   #tabbar .tb.on { color: #ff8f1f; }
 
@@ -520,6 +526,29 @@
     searchSort: "rel", searchQ: "", boardSort: "hot"
   };
   var plyMode = "ep";
+
+  /* ===== 移动端适配配置 ===== */
+  var UCONF = { lockScroll: true, historyBack: true, keyAvoid: true };
+  var lockN = 0, lockY = 0, pushN = 0;
+  function lockScroll() {
+    if (!UCONF.lockScroll) return;
+    if (lockN++ > 0) return;
+    lockY = window.scrollY || 0;
+    document.body.style.top = (-lockY) + "px";
+    document.body.classList.add("lock");
+  }
+  function unlockScroll() {
+    if (!UCONF.lockScroll) return;
+    if (lockN > 0) lockN--;
+    if (lockN > 0) return;
+    document.body.classList.remove("lock");
+    document.body.style.top = "";
+    window.scrollTo(0, lockY);
+  }
+  function pushOv(kind) {
+    if (!UCONF.historyBack) return;
+    try { history.pushState({ ov: kind }, ""); pushN++; } catch (e) {}
+  }
 
   function mergeBySort(a, b) {
     var seen = {}, out = [];
@@ -1615,6 +1644,7 @@
   function openDetail(row, jumpEp) {
     detailRow = row;
     state.curRow = row;
+    if ($("detail").style.display !== "block") { pushOv("detail"); lockScroll(); }
     renderDetailHead(row);
     var followed0 = getFollow().some(function (f) { return String(f.id) === String(row.vod_id); });
     $("dFollow").textContent = followed0 ? "已追" : "追剧";
@@ -1782,7 +1812,7 @@
       paint(pool.concat(j.list || []));
     }).catch(function () { paint(pool); });
   }
-  $("dBack").onclick = function () { $("detail").style.display = "none"; };
+  $("dBack").onclick = function () { requestCloseDetail(); };
   $("dIntro").onclick = function () { this.classList.toggle("open"); };
   $("dStaff").onclick = function (e) {
     var t = e.target;
@@ -1818,6 +1848,54 @@
   };
 
   /* ---------- 播放 ---------- */
+  function showPly() {
+    if ($("ply").style.display === "flex") return;
+    $("ply").style.display = "flex";
+    pushOv("ply");
+    lockScroll();
+  }
+  function closePly(viaPop) {
+    saveSec();
+    sessSettle();
+    clearTimeout(parseWatch);
+    hideNext();
+    hideTap();
+    destroyEngine();
+    closeSheet();
+    $("ply").classList.remove("fs");
+    $("pHud").style.display = "none";
+    $("pShot").style.display = "none";
+    preloadMark = "";
+    $("ply").style.display = "none";
+    $("pRoutes").style.display = "none";
+    $("pFitRow").style.display = "none";
+    $("pSpeed").style.display = "none";
+    $("pFrame").src = "about:blank";
+    var v = $("pVideo");
+    try { v.pause(); } catch (e) {}
+    v.removeAttribute("src"); v.load();
+    unlockScroll();
+    renderHome();
+  }
+  function requestClosePly() {
+    if (UCONF.historyBack && pushN > 0) { history.back(); return; }
+    closePly(false);
+  }
+  function closeDetail() {
+    $("detail").style.display = "none";
+    $("dIntro").classList.remove("open");
+    unlockScroll();
+  }
+  function requestCloseDetail() {
+    if (UCONF.historyBack && pushN > 0) { history.back(); return; }
+    closeDetail();
+  }
+  window.addEventListener("popstate", function () {
+    if (pushN > 0) pushN--;
+    if ($("ply").style.display === "flex") { closePly(true); return; }
+    if ($("detail").style.display === "block") { closeDetail(); }
+  });
+
   function playEp(i) {
     if (!state.eps.length) return;
     state.epIdx = i;
@@ -1840,7 +1918,7 @@
       setWH(wh.slice(0, 50));
     }
     state.pcur = PLAYER + encodeURIComponent(ep.url);
-    $("ply").style.display = "flex";
+    showPly();
     window.plyMode = "ep";
     clearTimeout(parseWatch);
     $("pRoutes").style.display = "none";
@@ -2342,28 +2420,7 @@
     else if (k === "f" || k === "F") { nativeFullscreen(); }
   });
   window.addEventListener("pagehide", function () { try { saveSec(); } catch (e) {} });
-  $("pClose").onclick = function () {
-    saveSec();
-    sessSettle();
-    clearTimeout(parseWatch);
-    hideNext();
-    hideTap();
-    destroyEngine();
-    closeSheet();
-    $("ply").classList.remove("fs");
-    $("pHud").style.display = "none";
-    $("pShot").style.display = "none";
-    preloadMark = "";
-    $("ply").style.display = "none";
-    $("pRoutes").style.display = "none";
-    $("pFitRow").style.display = "none";
-    $("pSpeed").style.display = "none";
-    $("pFrame").src = "about:blank";
-    var v = $("pVideo");
-    try { v.pause(); } catch (e) {}
-    v.removeAttribute("src"); v.load();
-    renderHome();
-  };
+  $("pClose").onclick = function () { requestClosePly(); };
   $("pEps").onclick = function () {
     if (window.plyMode === "parse") { tip("解析线路自带选集，请在播放器内操作"); return; }
     var b = $("pEplist");
@@ -2507,7 +2564,7 @@
     v.removeAttribute("src"); v.load(); v.style.display = "none";
     var f = $("pFrame");
     f.style.display = "block";
-    $("ply").style.display = "flex";
+    showPly();
     $("pTitle").textContent = s.name + " · 官方源播放";
     $("pEplist").innerHTML = ""; $("pEplist").style.display = "none";
     $("pFitRow").style.display = "none";
@@ -2875,7 +2932,7 @@
     $("pFitRow").style.display = "none";
     $("pSpeed").style.display = "none";
     hideNext();
-    $("ply").style.display = "flex";
+    showPly();
     $("pTitle").textContent = d.t + " · 离线播放";
     var f = $("pFrame");
     f.style.display = "block";
@@ -2983,7 +3040,7 @@
   })();
   /* ---------- 下拉刷新 / 页签刷新 ---------- */
   var pullEl = $("pull"), pullTxt = $("pullTxt");
-  var pullStartY = null, pulling = false, pullDist = 0, refreshing = false;
+  var pullStartY = null, pullStartX = 0, pulling = false, pullDist = 0, refreshing = false;
   function pullReset() {
     pulling = false; pullDist = 0;
     pullEl.style.transform = ""; pullEl.classList.remove("loading");
@@ -3015,11 +3072,13 @@
   document.addEventListener("touchstart", function (e) {
     if (refreshing) return;
     if ($("ply").style.display === "flex" || $("detail").style.display === "block") return;
-    if (window.scrollY <= 0) pullStartY = e.touches[0].clientY;
+    if (window.scrollY <= 0) { pullStartY = e.touches[0].clientY; pullStartX = e.touches[0].clientX; }
   }, { passive: true });
   document.addEventListener("touchmove", function (e) {
     if (pullStartY === null) return;
     var dy = e.touches[0].clientY - pullStartY;
+    var dx = Math.abs(e.touches[0].clientX - pullStartX);
+    if (dx > Math.abs(dy)) { pullStartY = null; pullReset(); return; }   // 横滑（轮播/榜单）不触发刷新
     if (dy > 10 && window.scrollY <= 0) {
       pulling = true;
       pullDist = Math.min(dy * 0.4, 90);
@@ -3034,6 +3093,17 @@
     pullStartY = null;
     if (fire) doRefresh();
     else if (pulling) pullReset();
+  });
+  /* iOS 键盘弹出时隐藏底栏（fixed 元素会浮在键盘上方） */
+  document.addEventListener("focusin", function (e) {
+    if (!UCONF.keyAvoid) return;
+    var tag = ((e.target && e.target.tagName) || "").toLowerCase();
+    if (tag === "input" || tag === "textarea") document.body.classList.add("kb");
+  });
+  document.addEventListener("focusout", function () {
+    setTimeout(function () {
+      if (!document.querySelector("input:focus, textarea:focus")) document.body.classList.remove("kb");
+    }, 60);
   });
 
   renderCatChips();
