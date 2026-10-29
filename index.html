@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0f1114">
-<meta name="appver" content="66">
+<meta name="theme-color" content="#0f1114" id="themeColor">
+<meta name="apple-mobile-web-app-title" content="影视库">
+<meta name="appver" content="67">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -401,6 +402,10 @@
   body.light #detail .dn { text-shadow: none; }
   body.fs-2 { zoom: 1.08; }
   body.fs-3 { zoom: 1.16; }
+  :focus-visible { outline: 2px solid #ff8f1f; outline-offset: 2px; }
+  .pcard:focus-visible, .hcard:focus-visible, .rank:focus-visible, .frow .fmain:focus-visible {
+    outline-offset: 3px; border-radius: 6px; }
+  .chip { min-height: 38px; display: inline-flex; align-items: center; }
 
   /* ===== 阶段2A：PC 多列自适应（移动端 3 列保持不变） ===== */
   @media (min-width: 768px) {
@@ -434,7 +439,7 @@
   <div id="pull"><span class="spin"></span><i id="pullTxt">下拉刷新</i></div>
 
   <div class="sbar">
-    <div class="box" id="searchOpen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>搜索影视剧名</span></div>
+    <div class="box" id="searchOpen" role="button" tabindex="0" aria-label="搜索影视剧名"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>搜索影视剧名</span></div>
   </div>
 
   <main>
@@ -453,7 +458,7 @@
 
     <section class="view" id="v-search">
       <div class="row">
-        <button class="sback" id="sBack">‹</button>
+        <button class="sback" id="sBack" aria-label="返回上一页">‹</button>
         <input id="q" type="search" enterkeyhint="search" placeholder="搜索影视剧名">
         <button class="go" id="go">搜索</button>
       </div>
@@ -491,7 +496,7 @@
         <div class="mt">② 粘贴链接解析 <small>无拼接广告 · 画质同平台</small></div>
         <div class="prow">
           <input id="purl" type="text" inputmode="text" autocapitalize="off" placeholder="长按此处粘贴剧集链接">
-          <button class="pclr" id="pclr" title="清空输入">×</button>
+          <button class="pclr" id="pclr" title="清空输入" aria-label="清空输入">×</button>
           <button class="pgo" id="pgo">解析</button>
         </div>
         <div class="perr" id="perr"></div>
@@ -544,7 +549,7 @@
   </nav>
 
   <div id="detail">
-    <span class="back" id="dBack">‹</span>
+    <span class="back" id="dBack" role="button" tabindex="0" aria-label="返回">‹</span>
     <div class="dhead">
       <img id="dPic" alt="">
       <div>
@@ -572,20 +577,20 @@
   </div>
 
   <div id="settings">
-    <div class="sh"><span class="back" id="setBack" style="font-size:26px;line-height:1;padding:2px 8px 2px 0;cursor:pointer">‹</span><b>设置</b></div>
+    <div class="sh"><span class="back" id="setBack" role="button" tabindex="0" aria-label="返回" style="font-size:26px;line-height:1;padding:2px 8px 2px 0;cursor:pointer">‹</span><b>设置</b></div>
     <div id="setBody"></div>
   </div>
 
   <div id="ply">
     <div class="bar">
-      <button id="pClose">✕</button>
+      <button id="pClose" aria-label="关闭播放器">✕</button>
       <b id="pTitle"></b>
-      <button id="pEps">选集</button>
-      <button id="pDirect" title="系统播放器直连源站，快进加载更快">直连</button>
-      <button id="pFitBtn" class="mini" title="画面比例：智能（点此切换）">智能</button>
-      <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）">网页</button>
-      <button id="pDl" style="display:none">缓存</button>
-      <button id="pMore" class="mini" title="更多播放设置">⋯</button>
+      <button id="pEps" aria-label="选集">选集</button>
+      <button id="pDirect" title="系统播放器直连源站，快进加载更快" aria-label="切换播放模式">直连</button>
+      <button id="pFitBtn" class="mini" title="画面比例：智能（点此切换）" aria-label="切换画面比例">智能</button>
+      <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）" aria-label="网页打开">网页</button>
+      <button id="pDl" style="display:none" aria-label="缓存本集">缓存</button>
+      <button id="pMore" class="mini" title="更多播放设置" aria-label="更多播放设置">⋯</button>
     </div>
     <div class="proutes" id="pRoutes" style="display:none"></div>
     <div class="proutes" id="pFitRow" style="display:none"></div>
@@ -598,7 +603,7 @@
     <div id="pErr"><div class="peh">播放失败</div><div class="pem" id="pErrMsg"></div>
       <div class="per"><button class="go" id="pErrRetry">重试</button><button id="pErrLine">换线路</button><button id="pErrWeb">网页打开</button></div>
     </div>
-    <div id="pFsExit">✕</div>
+    <div id="pFsExit" role="button" tabindex="0" aria-label="退出全屏">✕</div>
     <div id="pHud"></div>
     <div id="pSheet"><div class="pst">播放设置</div><div class="pgrid" id="pSheetGrid"></div></div>
     <div id="pShot"><img id="pShotImg" alt=""><small>长按图片可保存到相册</small><button id="pShotClose" style="padding:9px 18px;border:none;border-radius:8px;background:#232730;color:#c9ced6">关闭</button></div>
@@ -609,6 +614,15 @@
   var $ = function (id) { return document.getElementById(id); };
   var API = "https://bfzyapi.com/api.php/provide/vod/";
   var PLAYER = "https://wsyzy.vip/m3u8/?url=";
+  var IMG_FB = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 142'%3E%3Crect width='100' height='142' fill='%231a1d23'/%3E%3Cpath d='M40 55 L66 71 L40 87 Z' fill='%233a4048'/%3E%3C/svg%3E";
+  document.addEventListener("error", function (e) {
+    var img = e.target;
+    if (!img || img.tagName !== "IMG" || img.dataset.fb) return;
+    img.dataset.fb = "1";
+    img.style.objectFit = "cover";
+    img.src = IMG_FB;
+    img.classList.add("on");
+  }, true);
   /* ===== 播放器配置（集中管理；可在设置面板/本地覆盖，逻辑里不硬编码） ===== */
   var PCONF = {
     speeds: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
@@ -638,7 +652,7 @@
   var state = {
     view: "home", catId: 31, catPg: 3, catYear: "", catSort: "hot", homePg: 1, loading: false, cnOnly: false, catGen: 0, homeGen: 0, showAllHist: false,
     lines: [], lineIdx: 0, eps: [], epIdx: -1, epPage: 0, epDesc: false, epHint: 0, curRow: null,
-    searchSort: "rel", searchQ: "", boardSort: "hot"
+    searchSort: "rel", searchQ: "", boardSort: "hot", scrollByView: {}
   };
   var plyMode = "ep";
 
@@ -695,6 +709,9 @@
     PCONF.preloadNext = !!SCONF.preloadNext;
     var lt = themeResolved() === "light";
     document.body.classList.toggle("light", lt);
+    var tc = document.getElementById("themeColor");
+    if (tc) tc.setAttribute("content", lt ? "#f5f6f8" : "#0f1114");
+    document.documentElement.style.background = lt ? "#f5f6f8" : "#0f1114";
     document.body.classList.remove("fs-2", "fs-3");
     if (SCONF.fontScale >= 1.14) document.body.classList.add("fs-3");
     else if (SCONF.fontScale >= 1.05) document.body.classList.add("fs-2");
@@ -819,6 +836,14 @@
       return best;
     }).catch(function () { return { w: 0, tag: "" }; });
   }
+  function kbActivate(el, fn, label) {
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    if (label) el.setAttribute("aria-label", label);
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); }
+    });
+  }
   function pcard(row, onClick, prog) {
     var d = document.createElement("div");
     d.className = "pcard";
@@ -843,6 +868,7 @@
     d.querySelector(".pn").textContent = row.vod_name;
     d.querySelector(".pr").textContent = [row.type_name, row.vod_year].filter(Boolean).join(" · ");
     d.onclick = onClick;
+    kbActivate(d, onClick, row.vod_name || "影片");
     return d;
   }
 
@@ -967,6 +993,7 @@
   /* ---------- 页签 ---------- */
   function switchView(v) {
     if (v === "search" && state.view !== "search") state.fromView = state.view;
+    if (state.view && state.view !== v) state.scrollByView[state.view] = window.scrollY || 0;
     state.view = v;
     ["home", "cat", "search", "follow", "parse", "mine"].forEach(function (x) {
       $("v-" + x).classList.toggle("on", x === v);
@@ -981,20 +1008,32 @@
     if (v === "parse") renderJumps();
     if (v === "search") {
       if (!$("searchGrid").children.length) { renderSHist(); renderSearchHot(); $("searchSort").style.display = "none"; }
-      setTimeout(function () { try { $("q").focus(); } catch (e) {} }, 100);
+      setTimeout(function () {
+        try { $("q").focus({ preventScroll: true }); } catch (e) { try { $("q").focus(); } catch (e2) {} }
+      }, 100);
     }
     if (v === "home" && !$("homeBlocks").children.length) { renderHome(); loadHome(false); }
     if (v === "cat" && !$("catGrid").children.length) loadCat(false);
-    window.scrollTo(0, 0);
+    window.scrollTo(0, state.scrollByView[v] || 0);
   }
   document.querySelectorAll("#tabbar .tb").forEach(function (t) {
+    t.tabIndex = 0;
+    t.setAttribute("role", "button");
+    t.setAttribute("aria-label", (t.textContent || "").trim());
+    t.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); t.click(); }
+    });
     t.onclick = function () {
-      if (state.view === t.dataset.v) { window.scrollTo(0, 0); doRefresh(); }
+      if (state.view === t.dataset.v) { state.scrollByView[state.view] = 0; window.scrollTo(0, 0); doRefresh(); }
       else switchView(t.dataset.v);
     };
   });
-  $("searchOpen").onclick = function () { switchView("search"); $("q").focus(); };
+  $("searchOpen").onclick = function () { switchView("search"); };
   $("sBack").onclick = function () { switchView(state.fromView || "home"); };
+  ["dBack", "setBack", "pFsExit", "searchOpen"].forEach(function (id) {
+    var el = $(id);
+    if (el) kbActivate(el, function () { el.click(); }, el.getAttribute("aria-label") || "按钮");
+  });
 
   /* ---------- 首页（多页拉取 + 热度排行） ---------- */
   var homeLoading = false, homePool = [];
@@ -1067,6 +1106,7 @@
     var ht = d.querySelector(".ht");
     if (tag) ht.textContent = tag; else ht.style.display = "none";
     d.onclick = onClick;
+    kbActivate(d, onClick, row.vod_name || "影片");
     return d;
   }
   function section(title, small) {
@@ -1308,7 +1348,9 @@
         var hv = key === "day" ? num(row.vod_hits_day) : key === "week" ? num(row.vod_hits_week) : key === "all" ? num(row.vod_hits) : hitsOf(row);
         d.querySelector(".rn").textContent = row.vod_name;
         d.querySelector(".rm").textContent = [[row.type_name, row.vod_year].filter(Boolean).join(" · "), hv ? "热" + fmtHot(hv) : ""].filter(Boolean).join(" · ");
-        d.onclick = function () { openDetail(row); };
+        var openRow = function () { openDetail(row); };
+        d.onclick = openRow;
+        kbActivate(d, openRow, row.vod_name);
         col.appendChild(d);
       });
       grid.appendChild(col);
@@ -1506,6 +1548,8 @@
     var raw = ($("q").value || "").trim();
     lastQuery = raw;
     if (!raw) { $("err").textContent = "⚠ 请输入影视名"; return; }
+    state.scrollByView.search = 0;
+    window.scrollTo(0, 0);
     if (searching) return;
     searching = true; $("go").disabled = true; $("err").textContent = "";
     status("search", "搜索「" + raw + "」…");
@@ -3502,6 +3546,7 @@
   }
   function renderSettings() {
     var body = $("setBody"); body.innerHTML = "";
+    var panel = $("settings"), sc = panel ? panel.scrollTop : 0;
     function optRow(g, label, desc, opts, cur, pick, fmt) {
       var r = sItem(g, label, desc);
       var box = document.createElement("div"); box.className = "sopt";
@@ -3518,9 +3563,13 @@
       var r = sItem(g, label, desc);
       var b = document.createElement("button");
       b.className = "sw" + (SCONF[key] ? " on" : "");
+      b.setAttribute("role", "switch");
+      b.setAttribute("aria-label", label);
+      b.setAttribute("aria-checked", SCONF[key] ? "true" : "false");
       b.onclick = function () {
         SCONF[key] = !SCONF[key];
         b.classList.toggle("on", SCONF[key]);
+        b.setAttribute("aria-checked", SCONF[key] ? "true" : "false");
         saveSCONF(); applySettings();
       };
       r.appendChild(b);
@@ -3574,6 +3623,7 @@
     var g6 = settingsSection("关于");
     var ver = (document.querySelector('meta[name="appver"]') || {}).content || "?";
     sItem(g6, "版本", "当前 v" + ver + " · 影视库");
+    if (panel) panel.scrollTop = sc;
   }
   function closeSettings() { $("settings").style.display = "none"; unlockScroll(); }
   function requestCloseSettings() {
