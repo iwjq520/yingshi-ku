@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="82">
+<meta name="appver" content="83">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -154,7 +154,7 @@
 
   #ply { position: fixed; inset: 0; z-index: 999; background: #000; display: none; flex-direction: column; }
   #pBack { position: absolute; inset: -28px; z-index: 0; background-position: center; background-size: cover;
-    filter: blur(30px) brightness(.42) saturate(1.15); transform: scale(1.1); opacity: 0;
+    background-color: #0b0c0f; filter: brightness(.5) saturate(1.2); transform: scale(1.08); opacity: 0;
     transition: opacity .25s ease; pointer-events: none; }
   #pBack.on { opacity: 1; }
   #ply .bar { display: flex; align-items: center; gap: 6px; padding: calc(env(safe-area-inset-top) + 8px) 10px 8px;
@@ -333,6 +333,12 @@
   /* ===== 阶段1：播放内核 ===== */
   #pTap { position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center;
     background: rgba(0,0,0,.34); }
+  #pLoad { position: absolute; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center;
+    pointer-events: none; }
+  #ply.land { inset: 0 auto auto 0; width: 100vh; height: 100vw;
+    transform: translateX(100vw) rotate(90deg); transform-origin: 0 0; }
+  #pLand { display: block; }
+  @media (min-width: 1100px) { #pLand { display: none; } }
   #pTap button { padding: 12px 22px; font-size: 14px; border-radius: 999px; border: none;
     background: #ff8f1f; color: #201004; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
   #pErr { position: absolute; inset: 0; z-index: 7; display: none; align-items: center; justify-content: center;
@@ -773,6 +779,7 @@
       <button id="pEps" aria-label="选集">选集</button>
       <button id="pDirect" title="系统播放器直连源站，快进加载更快" aria-label="切换播放模式">直连</button>
       <button id="pFitBtn" class="mini" title="画面比例：智能（点此切换）" aria-label="切换画面比例">智能</button>
+      <button id="pLand" title="横屏播放（仿App全屏）" aria-label="横屏播放">横屏</button>
       <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）" aria-label="网页打开">网页</button>
       <button id="pDl" style="display:none" aria-label="缓存本集">缓存</button>
       <button id="pMore" class="mini" title="更多播放设置" aria-label="更多播放设置">⋯</button>
@@ -785,8 +792,9 @@
     <div class="eplist" id="pEplist" style="display:none"></div>
     <div id="pNext"></div>
     <div id="pTap"><button id="pTapBtn">点此播放</button></div>
+    <div id="pLoad"><span class="sspin" style="width:30px;height:30px;border-width:3px"></span></div>
     <div id="pErr"><div class="peh">播放失败</div><div class="pem" id="pErrMsg"></div>
-      <div class="per"><button class="go" id="pErrRetry">重试</button><button id="pErrLine">换线路</button><button id="pErrWeb">网页打开</button></div>
+      <div class="per"><button class="go" id="pErrCloud">切云播放</button><button class="go" id="pErrRetry">重试</button><button id="pErrLine">换线路</button><button id="pErrWeb">网页打开</button></div>
     </div>
     <div id="pFsExit" role="button" tabindex="0" aria-label="退出全屏">✕</div>
     <div id="pHud"></div>
@@ -3049,6 +3057,8 @@
     hideNext();
     hideTap();
     hidePBack();
+    clearLoadWatch();
+    updPLoad();
     destroyEngine();
     closeSheet();
     $("ply").classList.remove("fs");
@@ -3271,6 +3281,7 @@
     $("pErrMsg").textContent = msg || "播放失败，可能是片源失效或防盗链";
     $("pErrLine").disabled = !(window.plyMode === "ep" && state.lines.length > 1);
     $("pErrWeb").style.display = window.plyMode === "ep" ? "" : "none";
+    $("pErrCloud").style.display = (window.plyMode === "ep" && directMode) ? "" : "none";
     $("pErr").style.display = "flex";
     hideTap();
   }
@@ -3318,6 +3329,39 @@
   $("pErrRetry").onclick = retryCurrent;
   $("pErrLine").onclick = switchNextLine;
   $("pErrWeb").onclick = function () { hidePlyErr(); $("pWeb").click(); };
+  $("pErrCloud").onclick = function () {
+    hidePlyErr();
+    if (directMode) $("pDirect").click();   // 切到云播放（iframe 线路），由云播放器接管
+  };
+
+  /* ---------- 加载看门狗：直连 12s 静默重试一次，22s 仍无画面则给操作面板 ---------- */
+  var loadWatch1 = null, loadWatch2 = null, nativeRetried = false;
+  function clearLoadWatch() { clearTimeout(loadWatch1); clearTimeout(loadWatch2); }
+  function armLoadWatch() {
+    clearLoadWatch();
+    if (!directMode || window.plyMode !== "ep") return;
+    loadWatch1 = setTimeout(function () {
+      var v = $("pVideo");
+      if (!v || v.readyState >= 2 || v.currentTime > 0) return;
+      if (!nativeRetried) {                  // 静默重试一次（native HLS 偶发起播失败）
+        nativeRetried = true;
+        try { v.load(); } catch (e) {}
+        safePlay();
+        armLoadWatch();
+      }
+    }, 12000);
+    loadWatch2 = setTimeout(function () {
+      var v = $("pVideo");
+      if (!v || v.readyState >= 2 || v.currentTime > 0) return;
+      showPlyErr("加载缓慢或已失败：可切云播放、重试或换线路");
+    }, 22000);
+  }
+  function updPLoad() {
+    var v = $("pVideo"), el = $("pLoad");
+    if (!el) return;
+    var show = window.plyMode === "ep" && directMode && v && !v.error && v.readyState < 3 && v.getAttribute("src");
+    el.style.display = show ? "flex" : "none";
+  }
 
   /* ---------- 锁屏 / 控制中心（Media Session） ---------- */
   var msBound = false;
@@ -3396,15 +3440,48 @@
   }
   function fitResolved() {
     if (fitMode !== "auto") return fitMode;
+    // 仿横屏模式下画面容器是横的，智能=铺满
+    if (landMode) return "cover";
     // 智能：横屏铺满裁切（同腾讯观感），竖屏完整显示 + 模糊海报铺底
     return isLandscapeViewport() ? "cover" : "contain";
   }
+  var landMode = false;
+  $("pLand").onclick = function () {
+    landMode = !landMode;
+    $("ply").classList.toggle("land", landMode);
+    this.textContent = landMode ? "竖屏" : "横屏";
+    this.title = landMode ? "竖屏播放" : "横屏播放（仿App全屏）";
+    applyFit();
+    try {
+      if (landMode && screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(function () {});
+      else if (!landMode && screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+    } catch (e) {}
+  };
   function applyPBack() {
     var b = $("pBack"), row = state.curRow;
     if (!b) return;
     if (row && row.vod_pic) {
-      b.style.backgroundImage = 'url("' + String(row.vod_pic).replace(/"/g, "%22") + '")';
-      b.classList.add("on");
+      // 低分辨率预模糊：把海报缩到 36px 再放大铺底，观感即模糊且零 GPU 成本
+      // （全屏 CSS blur(30px) 实时渲染在 iPhone 上是掉帧大户）
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var c = document.createElement("canvas");
+          var w = 36, h = Math.max(1, Math.round(36 * img.height / img.width));
+          c.width = w; c.height = h;
+          c.getContext("2d").drawImage(img, 0, 0, w, h);
+          b.style.backgroundImage = 'url("' + c.toDataURL("image/jpeg", 0.6) + '")';
+          b.classList.add("on");
+        } catch (e) {                          // 跨域污染：退回纯净深色渐变底
+          b.style.backgroundImage = "linear-gradient(180deg,#15171c,#0b0c0f)";
+          b.classList.add("on");
+        }
+      };
+      img.onerror = function () {
+        b.style.backgroundImage = "linear-gradient(180deg,#15171c,#0b0c0f)";
+        b.classList.add("on");
+      };
+      img.src = row.vod_pic;
     } else {
       b.classList.remove("on");
       b.style.backgroundImage = "";
@@ -3470,6 +3547,8 @@
         v.dataset.u = ep.url;
         hideTap();
         hidePlyErr();
+        try { v.poster = (state.curRow && state.curRow.vod_pic) || ""; } catch (e) {}   // 未出画面前显示海报（原生属性，零成本）
+        nativeRetried = false;
         var rs = state.resumeSec || 0;
         var startAt = rs > 3 ? rs : (PCONF.skipIntroSec || 0);
         if (startAt > 0) {
@@ -3490,12 +3569,17 @@
         attachSource(ep.url).then(function (m) {
           if (m === "hlsjs" || m === "native") { safePlay(); applySpd(); }
         });
+        armLoadWatch();
       }
+      updPLoad();
       f.style.display = "none"; v.style.display = "block";
     } else {
+      clearLoadWatch();
       destroyEngine();
       hidePlyErr();
+      updPLoad();
       try { v.pause(); } catch (e) {}
+      try { v.poster = ""; } catch (e) {}
       delete v.dataset.u;          // 云播放期间释放直连源，切回直连时必须重新挂源
       v.removeAttribute("src"); v.load();
       v.style.display = "none"; f.style.display = "block";
@@ -3585,10 +3669,16 @@
 
   var pv = $("pVideo");
   pv.addEventListener("error", function () {
+    clearLoadWatch();
+    updPLoad();
     if (window.plyMode !== "ep" || $("ply").style.display !== "flex") return;
     var ep = state.eps[state.epIdx];
     if (!ep || pv.dataset.u !== ep.url || !pv.getAttribute("src")) return;
     showPlyErr("播放失败：片源可能失效、防盗链或编码不支持。可重试、换线路或网页打开。");
+  });
+  ["loadstart", "waiting", "stalled", "seeking"].forEach(function (ev) { pv.addEventListener(ev, updPLoad); });
+  ["playing", "canplay", "pause", "ended"].forEach(function (ev) {
+    pv.addEventListener(ev, function () { if (ev === "playing" || ev === "canplay") clearLoadWatch(); updPLoad(); });
   });
   pv.addEventListener("play", function () {
     if (state.curRow) sessStart(String(state.curRow.vod_id));
