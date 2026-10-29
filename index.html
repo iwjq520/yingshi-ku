@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="56">
+<meta name="appver" content="57">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -1644,6 +1644,12 @@
   }
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible" && window.__dlBusy) acquireWakeLock();
+    if (document.visibilityState === "hidden" && window.__dlSavePartial) {
+      try { window.__dlSavePartial(); } catch (e) {}
+    }
+  });
+  window.addEventListener("pagehide", function () {
+    if (window.__dlSavePartial) { try { window.__dlSavePartial(); } catch (e) {} }
   });
 
   function cacheEpisode(ep, meta, resumeRec) {
@@ -1668,6 +1674,10 @@
       var l = getDL().filter(function (x) { return x.u !== id; });
       l.unshift(rec); setDL(l.slice(0, 40));
     }
+    // 切后台/关闭页面时也能保存进度（断点续传的关键）
+    window.__dlSavePartial = function () {
+      try { if (window.__dlLive) savePartial(window.__dlLive); } catch (e) {}
+    };
 
     var m3u8Promise;
     if (resumeRec && resumeRec.segs && resumeRec.segs.length) {
@@ -1717,7 +1727,10 @@
                 var etaTxt = eta > 0 ? ("约剩 " + (eta >= 60 ? Math.floor(eta / 60) + "分" + (eta % 60) + "秒" : eta + "秒")) : "";
                 btn.textContent = pc + "%";
                 $("pTitle").textContent = "缓存中 " + pc + "% · " + fmtMB(newBytes) + " · " + sp.toFixed(1) + "MB/s" + (etaTxt ? " · " + etaTxt : "");
-                if (doneN % 20 === 0) savePartial({ segs: p.segs, bytes: newBytes, doneN: doneN, total: total });
+                if (doneN % 8 === 0) {
+                  window.__dlLive = { segs: p.segs, bytes: newBytes, doneN: doneN, total: total };
+                  savePartial(window.__dlLive);
+                }
               }
             });
           });
@@ -1763,6 +1776,8 @@
       renderDL();
     }).then(function () {
       window.__dlBusy = false;
+      window.__dlLive = null;
+      window.__dlSavePartial = null;
       btn.disabled = false;
       releaseWakeLock();
       setTimeout(function () { if (btn.textContent === "已缓存" || btn.textContent === "继续") btn.textContent = "缓存"; }, 4000);
