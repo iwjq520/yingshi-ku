@@ -84,12 +84,13 @@
   .mineCard .mt { font-size: 14px; font-weight: 600; color: #f2f3f5; margin-bottom: 10px; }
   .mineCard .mt small { font-size: 11px; color: #5f6570; font-weight: 400; margin-left: 8px; }
   .prow { display: flex; gap: 8px; margin-bottom: 8px; }
-  .prow input { flex: 1; min-height: 42px; padding: 8px 12px; font-size: 14px; color: #f2f3f5;
+  .prow input { flex: 1; min-width: 0; min-height: 42px; padding: 8px 12px; font-size: 14px; color: #f2f3f5;
     background: #1e2228; border: none; border-radius: 8px; outline: none; }
-  .prow .paste { min-width: 56px; font-size: 14px; border-radius: 8px; border: none;
+  .prow .pclr { min-width: 40px; font-size: 17px; border-radius: 8px; border: none;
+    background: #232730; color: #9aa1ab; }
+  .prow .pgo { min-width: 68px; font-size: 14px; border-radius: 8px; border: none;
     background: #ff8f1f; color: #201004; font-weight: 600; }
   .perr { color: #ff7a7a; font-size: 12px; min-height: 16px; margin: 4px 0; }
-  .plines { display: flex; flex-wrap: wrap; gap: 8px; }
   .pline { padding: 9px 14px; font-size: 13px; border-radius: 8px; background: #232730;
     border: none; color: #c9ced6; cursor: pointer; }
   .pline.star { background: transparent; border: 1px solid #ff8f1f; color: #ff8f1f; font-weight: 600; }
@@ -97,7 +98,6 @@
   .proutes { display: none; gap: 6px; padding: 6px 10px 2px; overflow-x: auto; flex-shrink: 0; }
   .proutes .pline { padding: 6px 12px; font-size: 12px; flex-shrink: 0; }
   .proutes .ph { font-size: 11px; color: #5f6570; align-self: center; flex-shrink: 0; }
-  .plines .note { font-size: 11px; color: #5f6570; align-self: center; }
   .about { font-size: 11px; color: #565c66; line-height: 1.9; }
 
   #detail { position: fixed; inset: 0; z-index: 60; background: #0f1114; display: none;
@@ -260,16 +260,17 @@
           <div class="step"><i>1</i><span>在平台<b>点开想看的那一集</b>（跳进平台App也没关系）</span></div>
           <div class="step"><i>2</i><span>点那集的<b>分享按钮</b> → 选「<b>复制链接</b>」<br>
             <small style="color:#5f6570">网页方式：长按浏览器底部网址条 → 拷贝，二选一</small></span></div>
-          <div class="step"><i>3</i><span>回下方<b>长按粘贴</b>到链接解析，即播</span></div>
+          <div class="step"><i>3</i><span>回下方<b>长按粘贴</b> → 点「<b>解析</b>」即播</span></div>
         </div>
       </div>
       <div class="mineCard">
         <div class="mt">② 粘贴链接解析 <small>无拼接广告 · 画质同平台</small></div>
         <div class="prow">
           <input id="purl" type="text" inputmode="text" autocapitalize="off" placeholder="长按此处粘贴剧集链接">
+          <button class="pclr" id="pclr" title="清空输入">×</button>
+          <button class="pgo" id="pgo">解析</button>
         </div>
         <div class="perr" id="perr"></div>
-        <div class="plines" id="plines"></div>
         <div style="font-size:11px;color:#565c66;margin-top:8px;line-height:1.7">
           要复制的链接 = 平台里<b style="color:#ff8f1f">那一集播放页</b>的网址（地址栏形如 v.qq.com/x/cover/… · iqiyi.com/v_… · youku.com/v_show/… · mgtv.com/b/…）。搜索页/首页的网址没用。
         </div>
@@ -1518,18 +1519,16 @@
     });
   }
   (function () {
-    var box = $("plines");
-    PSOURCES.forEach(function (s) {
-      var b = document.createElement("span");
-      b.className = "pline" + (s.star ? " star" : "");
-      b.textContent = s.name;
-      b.onclick = function () {
-        var u = getPU(true);
-        if (!u) return;
-        openParse(s, u);
-      };
-      box.appendChild(b);
-    });
+    $("pgo").onclick = function () {
+      var u = getPU(true);
+      if (!u) return;
+      openParse(PSOURCES[0], u);
+    };
+    $("pclr").onclick = function () {
+      $("purl").value = "";
+      $("perr").textContent = "";
+      $("purl").focus();
+    };
   })();
   var PLAY = [
     { re: /(m\.)?v\.qq\.com\/x\/(cover|page|m\/play)/i, name: "腾讯视频" },
@@ -1573,10 +1572,8 @@
       // 其余链接（含其他平台/短链）不拦截，交由解析线路处理
     }
     $("perr").textContent = "";
-    try { localStorage.setItem("m_purl", u); } catch (e) {}
     return u;
   }
-  try { var pu0 = localStorage.getItem("m_purl"); if (pu0 && !$("purl").value) $("purl").value = pu0; } catch (e) {}
 
   /* ---------- 启动 ---------- */
   /* ---------- 下拉刷新 / 页签刷新 ---------- */
