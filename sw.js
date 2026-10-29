@@ -1,5 +1,5 @@
 /* 影视库 离线缓存外壳 v8:秒开 + 后台更新 + 弱网兜底 + 海报缓存 */
-var CACHE = "yingshiku-v46";
+var CACHE = "yingshiku-v47";
 var IMG_CACHE = "yingshiku-imgs-v1";
 var SHELL = ["./", "./index.html", "./icon-192.png", "./icon-512.png", "./manifest.webmanifest"];
 var NET_TIMEOUT = 8000;
@@ -49,14 +49,36 @@ self.addEventListener("fetch", function (e) {
     );
     return;
   }
-  // 外壳与图标：缓存秒开，后台静默拉新版，下次打开生效
+  // 页面导航：网络优先（保证第一时间拿到最新版），8秒超时/断网回退缓存秒开
+  if (e.request.mode === "navigate" || /\.html?$/.test(u.split("?")[0]) || u.indexOf("manifest.webmanifest") >= 0) {
+    e.respondWith(
+      new Promise(function (resolve) {
+        var done = false;
+        var t = setTimeout(function () { if (!done) { done = true; resolve(null); } }, 8000);
+        fetch(e.request, { cache: "reload" }).then(function (r) {
+          if (done) return;
+          done = true; clearTimeout(t);
+          try { caches.open(CACHE).then(function (c) { c.put(e.request, r.clone()); }); } catch (err) {}
+          resolve(r);
+        }).catch(function () {
+          if (done) return;
+          done = true; clearTimeout(t);
+          resolve(null);
+        });
+      }).then(function (r) {
+        if (r) return r;
+        return caches.match(e.request).then(function (c) { return c || caches.match("./index.html"); });
+      })
+    );
+    return;
+  }
+  // 其余外壳资源（图标等）：缓存秒开，后台静默拉新版
   e.respondWith(
     caches.match(e.request).then(function (hit) {
       var updating = fetchWithTimeout(e.request);
       if (hit) return hit;
       return updating.then(function (r) {
         if (r) return r;
-        if (e.request.mode === "navigate") return caches.match("./index.html");
         return Response.error();
       });
     })
