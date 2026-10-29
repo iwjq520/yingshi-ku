@@ -2,6 +2,8 @@
   "name": "影视库",
   "short_name": "影视库",
   "description": "聚合影视搜索与播放",
+  "id": "./index.html",
+  "lang": "zh-CN",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
