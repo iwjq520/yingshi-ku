@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="76">
+<meta name="appver" content="77">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -1889,6 +1889,7 @@
   /* ---------- 搜索（画质探测+⭐推荐+历史） ---------- */
   var searching = false;
   var lastQuery = "";
+  var doRefreshExtra = null;
   function typeBucket(t) {
     t = String(t || "");
     if (/动漫|动画/.test(t)) return "动漫";
@@ -1948,6 +1949,15 @@
       } else if (String(row.vod_year || "") !== f.year) return false;
     }
     return true;
+  }
+  function localPreResults(raw) {
+    var lkw = raw.toLowerCase();
+    return dedupe(homePool.filter(function (x) {
+      if (!x.vod_pic || !x.vod_name || !x.vod_play_url || isBlocked(x)) return false;
+      if (x.vod_name.toLowerCase().indexOf(lkw) >= 0) return true;
+      if (raw.length >= 2 && raw.indexOf(x.vod_name) >= 0) return true;
+      return tokensOf(x.vod_class).some(function (t) { return t && t === raw; });
+    }));
   }
   function paintSearchGrid() {
     var list = (state.searchList || []).slice();
@@ -2129,12 +2139,27 @@
     state.searchFacets = { cls: [], area: [], years: [] };
     status("search", "搜索「" + raw + "」…");
     $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
-    $("searchGrid").appendChild(skGrid(9));
+    // 本地池即时预结果：网络回来前先显示片库里的匹配，消除骨架屏等待
+    var preList = localPreResults(raw);
+    if (preList.length) {
+      preList.sort(function (a, b) { return matchScore(b, raw) - matchScore(a, raw); });
+      state.searchPool = preList; state.searchList = preList;
+      state.searchQ = raw; state.searchTotal = preList.length;
+      state.searchPageCount = 1; state.searchSort = "rel";
+      state.searchNote = "";
+      buildSearchFacets(preList);
+    }
     $("hotSec").style.display = "none"; $("hotGrid").innerHTML = ""; $("boardSort").style.display = "none";
     $("hotSearchChips").style.display = "none"; $("hotSearchChips").innerHTML = "";
     $("shist").innerHTML = ""; $("sugBox").style.display = "none"; $("sugBox").innerHTML = "";
-    $("searchFilters").style.display = "none"; $("searchMore").innerHTML = ""; $("searchSort").style.display = "none";
     $("st-search").onclick = null; $("st-search").style.cursor = "";
+    if (preList.length) {
+      applySearchView();
+      status("search", "本地找到 " + preList.length + " 部 · 正在搜索全网…");
+    } else {
+      $("searchFilters").style.display = "none"; $("searchMore").innerHTML = ""; $("searchSort").style.display = "none";
+      $("searchGrid").appendChild(skGrid(9));
+    }
     sugGen++; clearTimeout(sugTimer);
     state.epHint = parseHint(raw);
     var title = raw.replace(/第?s*d{1,4}s*[集期话]/g, "").replace(/^[，,。.s]+|[，,。.s]+$/g, "").trim() || raw;
@@ -2159,6 +2184,14 @@
     tryTerm(0).then(function (res) {
       if (gen !== state.searchGen) return;
       if (!res) {
+        if (state.searchPool.length) {           // 本地预结果兜底：网络无结果时不闪回骨架/空态
+          state.searchTotal = state.searchPool.length;
+          state.searchPageCount = 1;
+          state.searchNote = "网络无结果，以下为本地片库匹配";
+          applySearchView();
+          status("search", "网络无结果 · 已显示本地片库匹配 " + state.searchPool.length + " 部");
+          return;
+        }
         $("searchGrid").innerHTML = "";
         $("searchSort").style.display = "none"; $("searchFilters").style.display = "none"; $("searchMore").innerHTML = "";
         var alt = aliasTerms(title)[0] || correctSearchTerm(title);
@@ -4423,6 +4456,7 @@
     if (refreshing) return;
     refreshing = true;
     apiCache = {};
+    doRefreshExtra && doRefreshExtra();
     pullEl.classList.add("loading");
     pullTxt.textContent = "刷新中…";
     pullEl.style.transform = "translate(-50%, 0)";
