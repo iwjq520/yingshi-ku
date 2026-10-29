@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="54">
+<meta name="appver" content="55">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -288,6 +288,13 @@
         <div id="histBox"></div>
       </div>
       <div class="mineCard">
+        <div class="mt">我的缓存 <small>无网络也能看 · 已下载到本机</small> <button class="mtbtn" id="dlClear">清空</button></div>
+        <div id="dlBox"><div class="empty">还没有缓存的剧集</div></div>
+        <div style="font-size:11px;color:#565c66;margin-top:8px;line-height:1.7">
+          缓存会占手机存储（一集约 100~500MB），需要 App 前台保持打开直到下载完成。系统空间不足时可能被清理。
+        </div>
+      </div>
+      <div class="mineCard">
         <div class="mt">设置</div>
         <button class="dangertool" id="clearData">清除本机数据（追剧 / 观看历史）</button>
       </div>
@@ -339,6 +346,7 @@
       <button id="pEps">选集</button>
       <button id="pDirect" title="系统播放器直连源站，快进加载更快">直连</button>
       <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）">网页</button>
+      <button id="pDl" title="把这一集存到本机，无网络也能看">缓存</button>
     </div>
     <div class="proutes" id="pRoutes" style="display:none"></div>
     <iframe id="pFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
@@ -1591,6 +1599,163 @@
   }
   $("pListClear").onclick = function () { setPList([]); renderPList(); };
   renderPList();
+
+  /* ---------- 剧集缓存（HLS 分片下载到本机，离线可播） ---------- */
+  var DL_CACHE = "yingshiku-dl";
+  function getDL() { try { return JSON.parse(localStorage.getItem("m_dl") || "[]"); } catch (e) { return []; } }
+  function setDL(l) { try { localStorage.setItem("m_dl", JSON.stringify(l)); } catch (e) {} }
+  function fmtMB(b) { return (b / 1048576).toFixed(b > 104857600 ? 0 : 1) + "MB"; }
+  function dlBusy() { return !!window.__dlBusy; }
+  function openDlCache() { return caches.open(DL_CACHE); }
+
+  // 解析 m3u8（支持主清单嵌套一层），返回 {segs:[绝对URL], key}
+  function parseM3u8(text, base) {
+    var lines = text.split(/\r?\n/), segs = [], key = null, subs = [];
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i].trim();
+      if (!l) continue;
+      if (l.indexOf("#EXT-X-KEY:") === 0) {
+        var km = l.match(/URI="([^"]+)"/);
+        if (km) key = new URL(km[1], base).toString();
+      } else if (l.indexOf("#EXT-X-STREAM-INF") === 0) {
+        var n = (lines[i + 1] || "").trim();
+        if (n && n.charAt(0) !== "#") subs.push(new URL(n, base).toString());
+      } else if (l.charAt(0) !== "#") {
+        segs.push(new URL(l, base).toString());
+      }
+    }
+    return { segs: segs, key: key, subs: subs };
+  }
+
+  function cacheEpisode(ep, meta) {
+    if (dlBusy()) { tip("已有缓存任务在进行，请等它完成"); return; }
+    var list = getDL();
+    var id = ep.url;
+    if (list.some(function (x) { return x.u === id && x.done; })) { tip("这一集已经缓存过了"); return; }
+    if (!confirm("缓存这一集到本机？\n需要保持 App 打开直到完成，单集可能占 100~500MB 存储。")) return;
+
+    window.__dlBusy = true;
+    var title = (meta && meta.name ? meta.name + " " : "") + (ep.name || "剧集");
+    var btn = $("pDl");
+    btn.textContent = "0%";
+    btn.disabled = true;
+
+    fetch(ep.url, { cache: "reload" }).then(function (r) {
+      if (!r.ok) throw new Error("m3u8 " + r.status);
+      return r.text();
+    }).then(function (txt) {
+      if (txt.indexOf("#EXTM3U") < 0) throw new Error("不是有效m3u8");
+      var p = parseM3u8(txt, ep.url);
+      if (p.subs.length) {
+        // 主清单：取第一个子清单
+        return fetch(p.subs[0], { cache: "reload" }).then(function (r2) { return r2.text(); })
+          .then(function (t2) { return parseM3u8(t2, p.subs[0]); });
+      }
+      return p;
+    }).then(function (p) {
+      if (!p.segs.length) throw new Error("清单无分片");
+      if (p.key) throw new Error("该片源带加密，暂不支持缓存");
+      return openDlCache().then(function (c) {
+        var total = p.segs.length, ok = 0, bytes = 0;
+        function step(i) {
+          if (i >= total) return ok;
+          return fetch(p.segs[i], { cache: "reload" }).then(function (r) {
+            if (!r.ok) throw new Error("分片" + i + " " + r.status);
+            return r.blob().then(function (b) {
+              bytes += b.size;
+              return c.put(p.segs[i], new Response(b, { headers: { "Content-Type": "video/mp2t" } }));
+            });
+          }).then(function () {
+            ok++;
+            if (ok % 5 === 0 || ok === total) {
+              var pc = Math.round(ok / total * 100);
+              btn.textContent = pc + "%";
+              tip("缓存中 " + pc + "%（" + ok + "/" + total + " 片 · " + fmtMB(bytes) + "）");
+            }
+            return step(i + 1);
+          });
+        }
+        return step(0).then(function (n) {
+          var rec = {
+            u: id, t: title, plat: meta && meta.plat ? meta.plat : "",
+            m3u8: ep.url, segs: p.segs, bytes: bytes, n: n, done: true, ts: Date.now()
+          };
+          var l2 = getDL().filter(function (x) { return x.u !== id; });
+          l2.unshift(rec); setDL(l2.slice(0, 40));
+          return rec;
+        });
+      });
+    }).then(function (rec) {
+      tip("✅ 缓存完成：" + rec.t + "（" + fmtMB(rec.bytes) + "），可在「我的 → 我的缓存」离线观看");
+      btn.textContent = "已缓存";
+      renderDL();
+    }).catch(function (e) {
+      tip("缓存失败：" + (e && e.message ? e.message : "网络错误") + "（可重试）");
+      btn.textContent = "缓存";
+    }).then(function () {
+      window.__dlBusy = false;
+      btn.disabled = false;
+      setTimeout(function () { if (btn.textContent === "已缓存") btn.textContent = "缓存"; }, 3000);
+    });
+  }
+
+  $("pDl").onclick = function () {
+    var ep = state.eps[state.epIdx];
+    if (!ep || !ep.url) { tip("请先播放某一集再缓存"); return; }
+    if (/\.m3u8/i.test(ep.url) === false) { tip("该线路不是标准切片流，无法缓存"); return; }
+    cacheEpisode(ep, state.curRow);
+  };
+
+  /* ---------- 我的缓存列表 + 离线播放 ---------- */
+  function renderDL() {
+    var box = $("dlBox");
+    if (!box) return;
+    var list = getDL().filter(function (x) { return x.done; });
+    if (!list.length) { box.innerHTML = '<div class="empty">还没有缓存的剧集</div>'; return; }
+    box.innerHTML = "";
+    list.forEach(function (d) {
+      var row = document.createElement("div");
+      row.className = "frow";
+      row.innerHTML = '<img alt="" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 64 64\'%3E%3Crect width=\'64\' height=\'64\' rx=\'14\' fill=\'%2317191d\'/%3E%3Cpath d=\'M25 19 L47 32 L25 45 Z\' fill=\'%2338bdf8\'/%3E%3C/svg%3E"><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
+      row.querySelector(".fn").textContent = d.t;
+      row.querySelector(".fm").textContent = "已缓存 · " + fmtMB(d.bytes) + " · " + d.n + " 片";
+      row.querySelector(".fmain").onclick = function () { playDl(d); };
+      row.querySelector(".fx").onclick = function (ev) {
+        ev.stopPropagation();
+        if (!confirm("删除这个缓存？释放 " + fmtMB(d.bytes) + " 存储")) return;
+        openDlCache().then(function (c) {
+          return Promise.all((d.segs || []).map(function (s) { return c.delete(s).catch(function () {}); }));
+        }).then(function () {
+          setDL(getDL().filter(function (x) { return x.u !== d.u; }));
+          renderDL();
+          tip("已删除");
+        });
+      };
+      box.appendChild(row);
+    });
+  }
+  $("dlClear").onclick = function () {
+    var list = getDL();
+    if (!list.length) { tip("没有缓存"); return; }
+    if (!confirm("清空全部缓存？（释放约 " + fmtMB(list.reduce(function (s, x) { return s + (x.bytes || 0); }, 0)) + "）")) return;
+    caches.delete(DL_CACHE).then(function () { setDL([]); renderDL(); tip("已清空缓存"); });
+  };
+
+  function playDl(d) {
+    window.plyMode = "dl";
+    window.plyParseU = d.m3u8;
+    try { $("pVideo").pause(); } catch (e) {}
+    $("pVideo").style.display = "none";
+    $("pEplist").style.display = "none";
+    $("pRoutes").style.display = "none";
+    $("ply").style.display = "flex";
+    $("pTitle").textContent = d.t + " · 离线播放";
+    var f = $("pFrame");
+    f.style.display = "block";
+    // 用同源本地播放页承载 hls.js（离线切片经 SW 从 Cache Storage 提供）
+    f.src = "dlplayer.html?u=" + encodeURIComponent(d.m3u8);
+  }
+  $("dlBox") && renderDL();
   var PLAY = [
     { re: /(m\.)?v\.qq\.com\/x\/(cover|page|m\/play)/i, name: "腾讯视频" },
     { re: /(m\.)?iqiyi\.com\/[vw]_/i, name: "爱奇艺" },
