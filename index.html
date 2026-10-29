@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="69">
+<meta name="appver" content="70">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -719,7 +719,7 @@
     searchPool: [], searchPage: 1, searchPageCount: 1, searchTotal: 0, searchGen: 0, searchNote: "", searchViewGen: 0,
     searchFilters: { type: "", cls: "", area: "", year: "" },
     searchFacets: { cls: [], area: [], years: [] },
-    histFilter: "all", histEdit: false, histSel: {}
+    histFilter: "all", histEdit: false, histSel: {}, followGen: 0
   };
   var plyMode = "ep";
 
@@ -2117,7 +2117,20 @@
     var kw = ($("q").value || "").trim();
     var box = $("sugBox");
     clearTimeout(sugTimer);
-    if (!kw) { box.style.display = "none"; box.innerHTML = ""; sugGen++; if (sugCtl) try { sugCtl.abort(); } catch (e) {} return; }
+    if (!kw) {
+      box.style.display = "none"; box.innerHTML = ""; sugGen++;
+      if (sugCtl) try { sugCtl.abort(); } catch (e) {}
+      if (state.view === "search") {
+        state.searchPool = []; state.searchList = []; state.searchQ = ""; state.searchNote = "";
+        state.searchTotal = 0; state.searchPage = 1; state.searchPageCount = 1;
+        state.searchFilters = { type: "", cls: "", area: "", year: "" };
+        state.searchFacets = { cls: [], area: [], years: [] };
+        $("searchGrid").innerHTML = ""; $("searchSort").style.display = "none";
+        $("searchFilters").style.display = "none"; $("searchMore").innerHTML = "";
+        renderSHist(); renderSearchHot();
+      }
+      return;
+    }
     // 本地池即时联想:0 网络等待,毫秒级出现
     sugRender(sugLocal(kw), kw, true);
     // 网络补充:200ms 防抖,直达(绕队列),新输入自动取消旧请求
@@ -2176,12 +2189,12 @@
       };
       box.appendChild(sp);
     });
-    $("pname").addEventListener("keydown", function (e) {
+    $("pname").onkeydown = function (e) {
       if (e.key === "Enter") {
         var v = ($("pname").value || "").trim();
         if (v) openExt(JUMPS[0].url + encodeURIComponent(v));
       }
-    });
+    };
   }
   function renderSHist() {
     var box = $("shist"); if (!box) return;
@@ -2352,7 +2365,8 @@
     state.lines.forEach(function (l, i) {
       var b = document.createElement("span");
       b.className = "ep" + (i === state.lineIdx ? " on" : "");
-      b.textContent = l.name + (l.q.tag ? "（" + l.q.tag + "）" : "") + "（" + l.eps.length + "集）";
+      var qtag = l.resTag || l.q.tag;
+      b.textContent = l.name + (qtag ? "（" + qtag + "）" : "") + "（" + l.eps.length + "集）";
       b.onclick = function () {
         state.lineIdx = i; state.epIdx = -1; state.eps = state.lines[i].eps;
         renderDetailLines(); renderDetailEps();
@@ -2587,6 +2601,7 @@
     hidePlyErr();
     clearMediaSession();
     unlockScroll();
+    if ($("detail").style.display === "block") renderDetailEps();
     renderHome();
   }
   function requestClosePly() {
@@ -2630,7 +2645,6 @@
       prog[pid] = { ep: i + 1, name: ep.name || ("第" + (i + 1) + "集"), t: Date.now(), wsec: oldp.wsec || 0, sec: oldp.ep === i + 1 ? (oldp.sec || 0) : 0 };
       setProg(prog);
       state.resumeSec = prog[pid].sec;
-      sessStart(pid);
       var wh = getWH().filter(function (x) { return x.id !== String(state.curRow.vod_id); });
       wh.unshift({
         id: String(state.curRow.vod_id), name: state.curRow.vod_name, pic: state.curRow.vod_pic || "",
@@ -2672,7 +2686,7 @@
         try { $("pVideo").pause(); } catch (e) {}
       }
     }
-    else sessStart(String(state.curRow.vod_id));
+    else if (!$("pVideo").paused) sessStart(String(state.curRow.vod_id));
   });
   function renderPEplist() {
     var box = $("pEplist"); box.innerHTML = "";
@@ -2698,6 +2712,8 @@
   };
   var directMode = true;   // 默认直连（系统播放器：快进快 + 秒级进度记忆）
   try { if (localStorage.getItem("m_pmode") === "cloud") directMode = false; } catch (e) {}
+  $("pDirect").textContent = directMode ? "直连" : "云播放";
+  $("pDirect").title = directMode ? "当前直连（点击切云播放）" : "当前云播放（点击切直连）";
 
   /* ---------- 播放引擎：iOS/Safari 原生 HLS 优先，桌面回退 hls.js ---------- */
   var hlsInst = null, hlsLoading = null, qualLevels = [], qualCur = -1, srcGen = 0, hlsRetry = 0;
@@ -2984,7 +3000,8 @@
   $("pDirect").onclick = function () {
     if (state.epIdx < 0) { tip("请先播放某一集"); return; }
     directMode = !directMode;
-    this.textContent = directMode ? "云播放" : "直连";
+    this.textContent = directMode ? "直连" : "云播放";
+    this.title = directMode ? "当前直连（点击切云播放）" : "当前云播放（点击切直连）";
     try { localStorage.setItem("m_pmode", directMode ? "direct" : "cloud"); } catch (e) {}
     if (directMode) applyPlayer();
     else playEp(state.epIdx);
@@ -3070,9 +3087,11 @@
     showPlyErr("播放失败：片源可能失效、防盗链或编码不支持。可重试、换线路或网页打开。");
   });
   pv.addEventListener("play", function () {
+    if (state.curRow) sessStart(String(state.curRow.vod_id));
     try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; } catch (e) {}
   });
   pv.addEventListener("pause", function () {
+    sessSettle();
     try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } catch (e) {}
   });
   pv.addEventListener("ended", function () {
@@ -3453,6 +3472,8 @@
     if (tb) tb.classList.toggle("hasdot", has);
   }
   function renderFollow() {
+    state.followGen = (state.followGen || 0) + 1;
+    var gen = state.followGen;
     var list = getFollow();
     var box = $("followList");
     if (!list.length) {
@@ -3471,6 +3492,7 @@
       }).catch(function () { return { f: f, now: f.eps || 0 }; });
     });
     Promise.all(jobs).then(function (rs) {
+      if (gen !== state.followGen) return;
       status("follow", "");
       rs.forEach(function (r) {
         var upd = r.now > (r.f.eps || 0);
