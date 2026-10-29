@@ -7,7 +7,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="77">
+<script>
+/* 主题首帧提前应用：主脚本在 body 末尾才跑，硬编码深底会让亮色用户每次进站先闪黑 */
+(function () {
+  try {
+    var s = JSON.parse(localStorage.getItem("m_sconf") || "{}");
+    var lt = s.theme === "light" || (s.theme === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches);
+    var bg = lt ? "#f5f6f8" : "#0f1114";
+    document.documentElement.style.background = bg;
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute("content", bg);
+  } catch (e) {}
+})();
+</script>
+<meta name="appver" content="78">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -241,6 +254,7 @@
   .sk-card .skp { height: 0; padding-top: 142.5%; }
   .sk-card .skt { height: 10px; margin-top: 8px; width: 86%; }
   .sk-card .sks { height: 9px; margin-top: 6px; width: 56%; }
+  body.light .skw { background: #e8eaee; background-image: linear-gradient(90deg, #e8eaee 0, #f4f5f7 45%, #e8eaee 90%); }
 
   .pcard { transition: transform .12s ease; }
   .pcard:active, .hcard:active { transform: scale(.97); }
@@ -2141,12 +2155,17 @@
     $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
     // 本地池即时预结果：网络回来前先显示片库里的匹配，消除骨架屏等待
     var preList = localPreResults(raw);
+    var preFromSug = false;
+    if (!preList.length && sugCache[raw]) {       // 输入时联想已拉网：点搜索直接复用
+      preList = dedupe((sugCache[raw] || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url && !isBlocked(x); }));
+      preFromSug = preList.length > 0;
+    }
     if (preList.length) {
       preList.sort(function (a, b) { return matchScore(b, raw) - matchScore(a, raw); });
       state.searchPool = preList; state.searchList = preList;
       state.searchQ = raw; state.searchTotal = preList.length;
       state.searchPageCount = 1; state.searchSort = "rel";
-      state.searchNote = "";
+      state.searchNote = preFromSug ? "来自搜索联想" : "";
       buildSearchFacets(preList);
     }
     $("hotSec").style.display = "none"; $("hotGrid").innerHTML = ""; $("boardSort").style.display = "none";
@@ -2155,7 +2174,7 @@
     $("st-search").onclick = null; $("st-search").style.cursor = "";
     if (preList.length) {
       applySearchView();
-      status("search", "本地找到 " + preList.length + " 部 · 正在搜索全网…");
+      status("search", (preFromSug ? "已显示联想结果" : "本地找到 " + preList.length + " 部") + " · 正在搜索全网…");
     } else {
       $("searchFilters").style.display = "none"; $("searchMore").innerHTML = ""; $("searchSort").style.display = "none";
       $("searchGrid").appendChild(skGrid(9));
@@ -2254,7 +2273,7 @@
   $("go").onclick = doSearch;
   $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
   /* ---------- 搜索实时联想:本地池毫秒级直出 + 网络补充(绕队列/自动取消旧请求) ---------- */
-  var sugTimer = null, sugGen = 0, sugCtl = null;
+  var sugTimer = null, sugGen = 0, sugCtl = null, sugCache = {};
   function sugFallback(kw) {
     var box = $("sugBox");
     box.innerHTML = "";
@@ -2325,7 +2344,12 @@
     }).then(function (j) {
       if (sugCtl !== ctl || gen !== sugGen || state.view !== "search") return;
       var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url && !isBlocked(x); }).slice(0, 8);
-      if (list.length) sugRender(list, kw, false);
+      if (list.length) {
+        sugCache[kw] = list;                   // 输入时已拉网，点「搜索」直接复用，免骨架屏
+        var keys = Object.keys(sugCache);
+        if (keys.length > 24) delete sugCache[keys[0]];
+        sugRender(list, kw, false);
+      }
       else if (!sugLocal(kw).length) sugFallback(kw);
     }).catch(function () {});
   }
