@@ -1,14 +1,15 @@
-/* 影视库 离线缓存外壳 v8:秒开 + 后台更新 + 弱网兜底 + 海报缓存 */
-var CACHE = "yingshiku-v54";
+/* 影视库 离线缓存外壳 v8:秒开 + 后台更新 + 弱网兜底 + 海报缓存 + 剧集离线缓存 */
+var CACHE = "yingshiku-v55";
 var IMG_CACHE = "yingshiku-imgs-v1";
-var SHELL = ["./", "./index.html", "./icon-192.png", "./icon-512.png", "./manifest.webmanifest"];
+var DL_CACHE = "yingshiku-dl";
+var SHELL = ["./", "./index.html", "./dlplayer.html", "./icon-192.png", "./icon-512.png", "./manifest.webmanifest"];
 var NET_TIMEOUT = 8000;
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener("activate", function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== CACHE && k.indexOf("imgs") < 0; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return k !== CACHE && k !== DL_CACHE && k.indexOf("imgs") < 0; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 function fetchWithTimeout(req) {
@@ -29,8 +30,20 @@ function fetchWithTimeout(req) {
 self.addEventListener("fetch", function (e) {
   var u = e.request.url;
   if (e.request.method !== "GET") return;
-  // 影视数据接口与视频流：永远走网络（保证实时）
-  if (u.indexOf("bfzyapi.com") >= 0 || u.indexOf(".m3u8") >= 0 || u.indexOf(".ts") >= 0 || u.indexOf("wsyzy") >= 0) return;
+  // 已缓存到本机的剧集分片/清单：离线优先（无网也能播缓存的剧）
+  if (u.indexOf(".ts") >= 0 || u.indexOf(".m3u8") >= 0) {
+    e.respondWith(
+      caches.open(DL_CACHE).then(function (c) {
+        return c.match(e.request, { ignoreSearch: false }).then(function (hit) {
+          if (hit) return hit;
+          return fetch(e.request);
+        });
+      }).catch(function () { return fetch(e.request); })
+    );
+    return;
+  }
+  // 影视数据接口与云播放器：永远走网络（保证实时）
+  if (u.indexOf("bfzyapi.com") >= 0 || u.indexOf("wsyzy") >= 0) return;
   // 海报图片：缓存优先（同一海报只拉一次，二次浏览秒出省流量）
   if (e.request.destination === "image") {
     e.respondWith(
