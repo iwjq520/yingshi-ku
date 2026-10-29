@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="57">
+<meta name="appver" content="58">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -123,13 +123,14 @@
   .dnote { font-size: 11px; color: #565c66; margin-top: 10px; line-height: 1.7; }
 
   #ply { position: fixed; inset: 0; z-index: 999; background: #000; display: none; flex-direction: column; }
-  #ply .bar { display: flex; align-items: center; gap: 8px; padding: calc(env(safe-area-inset-top) + 8px) 10px 8px;
+  #ply .bar { display: flex; align-items: center; gap: 6px; padding: calc(env(safe-area-inset-top) + 8px) 10px 8px;
     background: #0c0d10; }
-  #ply .bar b { flex: 1; font-size: 13px; font-weight: 500; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  #ply .bar button { padding: 7px 13px; font-size: 13px; border-radius: 7px; border: none;
+  #ply .bar b { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #ply .bar button { padding: 7px 10px; font-size: 13px; border-radius: 7px; border: none; flex-shrink: 0;
     background: #1e2228; color: #c9ced6; }
+  #ply .bar button.mini { padding: 7px 8px; }
   #ply iframe { flex: 1; width: 100%; border: none; background: #000; }
-  #ply video { flex: 1; width: 100%; background: #000; object-fit: contain; }
+  #ply video { flex: 1; width: 100%; background: #000; object-fit: contain; min-height: 0; }
   #ply .eplist { max-height: 36vh; overflow-y: auto; padding: 10px; background: rgba(12,13,16,.97);
     display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -346,10 +347,12 @@
       <b id="pTitle"></b>
       <button id="pEps">选集</button>
       <button id="pDirect" title="系统播放器直连源站，快进加载更快">直连</button>
+      <button id="pFitBtn" class="mini" title="画面比例：智能（点此切换）">智能</button>
       <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）">网页</button>
       <button id="pDl" title="把这一集存到本机，无网络也能看">缓存</button>
     </div>
     <div class="proutes" id="pRoutes" style="display:none"></div>
+    <div class="proutes" id="pFitRow" style="display:none"></div>
     <iframe id="pFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
     <video id="pVideo" playsinline webkit-playsinline controls preload="auto" style="display:none"></video>
     <div class="eplist" id="pEplist" style="display:none"></div>
@@ -1255,6 +1258,7 @@
     window.plyMode = "ep";
     clearTimeout(parseWatch);
     $("pRoutes").style.display = "none";
+    $("pFitRow").style.display = "none";
     if (!directMode) $("pFrame").src = PLAYER + encodeURIComponent(ep.url);
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || ("第" + (i + 1) + "集"));
     renderPEplist();
@@ -1303,10 +1307,59 @@
   };
   var directMode = true;   // 默认直连（系统播放器：快进快 + 秒级进度记忆）
   try { if (localStorage.getItem("m_pmode") === "cloud") directMode = false; } catch (e) {}
+
+  /* ---------- 画面比例（智能默认：横屏铺满、竖屏完整） ---------- */
+  var FIT_MODES = [["auto", "智能"], ["contain", "适应"], ["cover", "铺满"], ["fill", "拉伸"]];
+  var fitMode = "auto";
+  try { var fitSaved = localStorage.getItem("m_fit"); if (/^(auto|contain|cover|fill)$/.test(fitSaved || "")) fitMode = fitSaved; } catch (e) {}
+  function fitLabel(m) {
+    for (var i = 0; i < FIT_MODES.length; i++) if (FIT_MODES[i][0] === m) return FIT_MODES[i][1];
+    return "智能";
+  }
+  function fitResolved() {
+    if (fitMode !== "auto") return fitMode;
+    // 智能：横屏铺满裁切（同腾讯观感），竖屏完整显示（避免把画面裁掉大半）
+    return window.innerWidth > window.innerHeight ? "cover" : "contain";
+  }
+  function applyFit() {
+    var v = $("pVideo"), b = $("pFitBtn");
+    if (v) v.style.objectFit = fitResolved();
+    if (b) { b.textContent = fitLabel(fitMode); b.title = "画面比例：" + fitLabel(fitMode) + "（点此切换）"; }
+  }
+  function renderFitRow() {
+    var box = $("pFitRow");
+    box.innerHTML = "";
+    var h = document.createElement("span");
+    h.className = "ph"; h.textContent = "画面比例";
+    box.appendChild(h);
+    FIT_MODES.forEach(function (m) {
+      var b = document.createElement("span");
+      b.className = "pline" + (m[0] === fitMode ? " on" : "");
+      b.textContent = m[1];
+      b.onclick = function () {
+        fitMode = m[0];
+        try { localStorage.setItem("m_fit", fitMode); } catch (e) {}
+        applyFit(); renderFitRow();
+        if (fitMode === "auto") tip(fitResolved() === "cover" ? "智能：横屏铺满画面" : "智能：竖屏完整显示");
+      };
+      box.appendChild(b);
+    });
+  }
+  $("pFitBtn").onclick = function () {
+    if (window.plyMode === "parse") { tip("官方源播放器有自己的画面比例设置，用播放器内的按钮调"); return; }
+    var box = $("pFitRow");
+    if (box.style.display === "flex") { box.style.display = "none"; return; }
+    renderFitRow();
+    box.style.display = "flex";
+  };
+  window.addEventListener("resize", function () { if (fitMode === "auto") applyFit(); });
+  window.addEventListener("orientationchange", function () { setTimeout(applyFit, 120); });
+  applyFit();
   function applyPlayer() {
     var ep = state.eps[state.epIdx];
     if (!ep) return;
     var v = $("pVideo"), f = $("pFrame");
+    applyFit();
     if (directMode) {
       if (v.dataset.u !== ep.url) {
         v.dataset.u = ep.url; v.src = ep.url;
@@ -1365,6 +1418,7 @@
     clearTimeout(parseWatch);
     $("ply").style.display = "none";
     $("pRoutes").style.display = "none";
+    $("pFitRow").style.display = "none";
     $("pFrame").src = "about:blank";
     var v = $("pVideo");
     try { v.pause(); } catch (e) {}
@@ -1503,6 +1557,7 @@
     $("ply").style.display = "flex";
     $("pTitle").textContent = s.name + " · 官方源播放";
     $("pEplist").innerHTML = ""; $("pEplist").style.display = "none";
+    $("pFitRow").style.display = "none";
     renderPRoutes(s.name);
     armParseWatch();
     // 先空载断开旧页（立刻停掉旧站的脚本与视频流），再挂新线路——切换更快更省资源
@@ -1858,6 +1913,7 @@
     $("pVideo").style.display = "none";
     $("pEplist").style.display = "none";
     $("pRoutes").style.display = "none";
+    $("pFitRow").style.display = "none";
     $("ply").style.display = "flex";
     $("pTitle").textContent = d.t + " · 离线播放";
     var f = $("pFrame");
