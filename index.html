@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="67">
+<meta name="appver" content="68">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -407,6 +407,29 @@
     outline-offset: 3px; border-radius: 6px; }
   .chip { min-height: 38px; display: inline-flex; align-items: center; }
 
+  /* ===== 阶段3A：筛选 / 卡片负反馈 ===== */
+  .fchips { display: flex; gap: 6px; align-items: center; padding: 2px 0; min-width: 0; }
+  .fchips .fl { flex-shrink: 0; width: 30px; font-size: 11px; color: #5f6570; }
+  .fchips .chips { flex: 1; min-width: 0; padding: 0; }
+  .fchips .chip { padding: 5px 10px; font-size: 12px; min-height: 30px; }
+  body.light .fchips .fl { color: #8a9099; }
+  .cmore { position: absolute; top: 5px; right: 5px; z-index: 3; width: 26px; height: 26px; border-radius: 50%;
+    border: none; background: rgba(0,0,0,.55); color: #fff; font-size: 15px; line-height: 1; padding: 0; }
+  #blockSheet { position: fixed; inset: 0; z-index: 95; background: rgba(0,0,0,.55); display: none;
+    align-items: flex-end; justify-content: center; }
+  .bsBox { width: 100%; max-width: 420px; background: #171a20; border-radius: 14px 14px 0 0;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); }
+  .bsTitle { font-size: 15px; font-weight: 600; color: #f2f3f5; margin-bottom: 4px; }
+  .bsName { font-size: 12px; color: #7d838c; margin-bottom: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .bsBtn { display: block; width: 100%; padding: 11px; margin-bottom: 8px; border: none; border-radius: 8px;
+    background: #232730; color: #e8eaee; font-size: 13px; }
+  .bsBtn.danger { color: #ff8a8a; }
+  .bsCancel { display: block; width: 100%; padding: 10px; border: none; background: transparent; color: #7d838c; font-size: 13px; }
+  body.light .bsBox { background: #fff; }
+  body.light .bsTitle { color: #171a20; }
+  body.light .bsBtn { background: #eceef2; color: #3a4048; }
+  @media (min-width: 768px) { #blockSheet { align-items: center; } .bsBox { border-radius: 14px; margin: 0 14px; } }
+
   /* ===== 阶段2A：PC 多列自适应（移动端 3 列保持不变） ===== */
   @media (min-width: 768px) {
     .view { max-width: 1200px; margin: 0 auto; }
@@ -436,6 +459,13 @@
 </head>
 <body>
   <div id="tip"></div>
+  <div id="blockSheet"><div class="bsBox">
+    <div class="bsTitle">不感兴趣</div>
+    <div class="bsName" id="bsName"></div>
+    <button class="bsBtn danger" id="bsBlock">不看这部</button>
+    <button class="bsBtn" id="bsType">减少「<span id="bsTypeName"></span>」同类推荐</button>
+    <button class="bsCancel" id="bsCancel">取消</button>
+  </div></div>
   <div id="pull"><span class="spin"></span><i id="pullTxt">下拉刷新</i></div>
 
   <div class="sbar">
@@ -465,9 +495,11 @@
       <div class="err" id="err"></div>
       <div class="status" id="st-search"></div>
       <div class="chips" id="searchSort" style="display:none"></div>
+      <div id="searchFilters" style="display:none"></div>
       <div id="sugBox" style="display:none"></div>
       <div class="chips" id="shist"></div>
       <div class="grid" id="searchGrid"></div>
+      <div id="searchMore"></div>
       <div class="sec" id="hotSec" style="display:none">榜单 <small>全网播放热度 · 左右滑动查看更多</small></div>
       <div class="chips" id="boardSort" style="display:none"></div>
       <div class="grid" id="hotGrid"></div>
@@ -645,6 +677,17 @@
     netResumeDelayMs: 600,         // 网络恢复后等待再续播
     mediaSession: true             // 锁屏/控制中心媒体信息
   };
+  var SEARCH_CONF = {
+    maxPages: 5,                   // 搜索最多加载页数（20 条/页）
+    aliases: [
+      ["斗破", "斗破苍穹"], ["庆余年", "庆余年 第二季"], ["凡人", "凡人修仙传"],
+      ["遮天", "遮天"], ["仙逆", "仙逆"], ["剑来", "剑来"], ["完美世界", "完美世界"],
+      ["吞噬星空", "吞噬星空"], ["神印王座", "神印王座"], ["火影", "火影忍者"],
+      ["海贼", "海贼王"], ["柯南", "名侦探柯南"], ["甄嬛", "甄嬛传"],
+      ["三国", "三国演义"], ["西游", "西游记"], ["水浒", "水浒传"], ["红楼", "红楼梦"],
+      ["三体", "三体"], ["狂飙", "狂飙"], ["雪中", "雪中悍刀行"], ["陈情令", "陈情令"]
+    ]
+  };
   try {
     var _pc = JSON.parse(localStorage.getItem("m_pconf") || "{}");
     Object.keys(_pc).forEach(function (k) { if (k in PCONF) PCONF[k] = _pc[k]; });
@@ -652,7 +695,10 @@
   var state = {
     view: "home", catId: 31, catPg: 3, catYear: "", catSort: "hot", homePg: 1, loading: false, cnOnly: false, catGen: 0, homeGen: 0, showAllHist: false,
     lines: [], lineIdx: 0, eps: [], epIdx: -1, epPage: 0, epDesc: false, epHint: 0, curRow: null,
-    searchSort: "rel", searchQ: "", boardSort: "hot", scrollByView: {}
+    searchSort: "rel", searchQ: "", boardSort: "hot", scrollByView: {},
+    searchPool: [], searchPage: 1, searchPageCount: 1, searchTotal: 0, searchGen: 0, searchNote: "", searchViewGen: 0,
+    searchFilters: { type: "", cls: "", area: "", year: "" },
+    searchFacets: { cls: [], area: [], years: [] }
   };
   var plyMode = "ep";
 
@@ -847,7 +893,7 @@
   function pcard(row, onClick, prog) {
     var d = document.createElement("div");
     d.className = "pcard";
-    d.innerHTML = '<div class="pw"><img loading="lazy" decoding="async" alt=""><span class="score"></span><span class="rq"></span></div><div class="pn"></div><div class="pr"></div>';
+    d.innerHTML = '<div class="pw"><img loading="lazy" decoding="async" alt=""><span class="score"></span><span class="rq"></span><button class="cmore" type="button" aria-label="更多操作">⋯</button></div><div class="pn"></div><div class="pr"></div>';
     var img = d.querySelector("img");
     if (row.vod_pic) {
       img.src = row.vod_pic;
@@ -867,6 +913,7 @@
     }
     d.querySelector(".pn").textContent = row.vod_name;
     d.querySelector(".pr").textContent = [row.type_name, row.vod_year].filter(Boolean).join(" · ");
+    d.querySelector(".cmore").onclick = function (e) { e.stopPropagation(); openBlockSheet(row); };
     d.onclick = onClick;
     kbActivate(d, onClick, row.vod_name || "影片");
     return d;
@@ -883,6 +930,60 @@
   function setProg(o) { setJ("m_prog", o); }
   function getWH() { return getJ("m_whist", "[]"); }
   function setWH(a) { setJ("m_whist", a); }
+  function getBlock() { return getJ("m_block", "[]"); }
+  function setBlock(a) { setJ("m_block", a); }
+  function isBlocked(row) {
+    var list = getBlock();
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i];
+      if (b.id && String(b.id) === String(row.vod_id)) return true;
+      if (b.hardType && b.type && b.type === row.type_name) return true;
+    }
+    return false;
+  }
+  function softPenalty(row) {
+    var p = 0;
+    getBlock().forEach(function (b) {
+      if (b.soft && b.type && b.type === row.type_name) p += 90;
+    });
+    return p;
+  }
+  var blockTarget = null;
+  function openBlockSheet(row) {
+    blockTarget = row;
+    $("bsName").textContent = row.vod_name || "";
+    $("bsTypeName").textContent = row.type_name || "";
+    $("bsType").style.display = row.type_name ? "block" : "none";
+    $("blockSheet").style.display = "flex";
+  }
+  function closeBlockSheet() { $("blockSheet").style.display = "none"; }
+  function refreshBlockedViews() {
+    renderHome();
+    if (state.view === "cat") renderCatGrid();
+    if (state.view === "search" && state.searchPool.length) applySearchView();
+    if ($("detail").style.display === "block" && detailRow) {
+      if (isBlocked(detailRow)) closeDetail();
+      else renderRelated(detailRow);
+    }
+  }
+  function addBlock(row, softType) {
+    var list = getBlock();
+    if (softType && row.type_name) {
+      if (!list.some(function (b) { return b.soft && b.type === row.type_name; })) {
+        list.unshift({ type: row.type_name, soft: true, t: Date.now() });
+      }
+    } else if (!list.some(function (b) { return String(b.id) === String(row.vod_id); })) {
+      list.unshift({ id: String(row.vod_id), name: row.vod_name || "", type: row.type_name || "", t: Date.now() });
+    }
+    setBlock(list.slice(0, 200));
+    closeBlockSheet();
+    refreshBlockedViews();
+    tip(softType ? ("已减少「" + row.type_name + "」同类推荐") : "已减少此类内容");
+  }
+  $("bsBlock").onclick = function () { if (blockTarget) addBlock(blockTarget, false); };
+  $("bsType").onclick = function () { if (blockTarget) addBlock(blockTarget, true); };
+  $("bsCancel").onclick = closeBlockSheet;
+  $("blockSheet").onclick = function (e) { if (e.target === this) closeBlockSheet(); };
   function hitsOf(row) {
     return Number(row.vod_hits_day) || Number(row.vod_hits_week) || Number(row.vod_hits) || 0;
   }
@@ -943,6 +1044,12 @@
       if (isFinite(t)) days = Math.max(0, (Date.now() - t) / 86400000);
     }
     return base * (0.55 + 0.45 * Math.exp(-days / 21));
+  }
+  // 飙升：今日播放相对本周日均的比值（无历史数据时的纯前端近似，口径会在 UI 标注）
+  function riseScore(row) {
+    var d = num(row.vod_hits_day), w = num(row.vod_hits_week), m = num(row.vod_hits_month);
+    if (!d) return 0;
+    return Math.min(20, (d * 7 + 1) / (w + 1)) * (1 + Math.log10(1 + m) / 20);
   }
   function byHotDesc(a, b) { return hotScore(b) - hotScore(a); }
   // 搜索相关度：精确 > 前缀 > 包含 > 散字命中，叠加热度/评分/年份新鲜度
@@ -1007,7 +1114,7 @@
     if (v === "mine") renderHist();
     if (v === "parse") renderJumps();
     if (v === "search") {
-      if (!$("searchGrid").children.length) { renderSHist(); renderSearchHot(); $("searchSort").style.display = "none"; }
+      if (!$("searchGrid").children.length) { renderSHist(); renderSearchHot(); $("searchSort").style.display = "none"; $("searchFilters").style.display = "none"; $("searchMore").innerHTML = ""; }
       setTimeout(function () {
         try { $("q").focus({ preventScroll: true }); } catch (e) { try { $("q").focus(); } catch (e2) {} }
       }, 100);
@@ -1088,7 +1195,7 @@
   function hcard(row, onClick, tag, sub, prog) {
     var d = document.createElement("div");
     d.className = "hcard";
-    d.innerHTML = '<div class="pw"><img loading="lazy" decoding="async" alt=""><span class="ht"></span></div><div class="pn"></div><div class="pr"></div>';
+    d.innerHTML = '<div class="pw"><img loading="lazy" decoding="async" alt=""><span class="ht"></span><button class="cmore" type="button" aria-label="更多操作">⋯</button></div><div class="pn"></div><div class="pr"></div>';
     var img = d.querySelector("img");
     if (row.vod_pic) {
       img.src = row.vod_pic;
@@ -1103,6 +1210,7 @@
     }
     d.querySelector(".pn").textContent = row.vod_name;
     d.querySelector(".pr").textContent = sub || [row.type_name, row.vod_year].filter(Boolean).join(" · ");
+    d.querySelector(".cmore").onclick = function (e) { e.stopPropagation(); openBlockSheet(row); };
     var ht = d.querySelector(".ht");
     if (tag) ht.textContent = tag; else ht.style.display = "none";
     d.onclick = onClick;
@@ -1142,9 +1250,10 @@
     var block = $("homeBlocks");
     if (!block) return;
     block.innerHTML = "";
-    if (!homePool.length) { block.appendChild(skGrid(9)); return; }
+    var pool = homePool.filter(function (row) { return !isBlocked(row); });
+    if (!pool.length) { block.appendChild(skGrid(9)); return; }
     // 0 焦点轮播（综合热度前 5，横向 snap 滑动）
-    var heroRows = dedupe(homePool.slice()).sort(byHotDesc).slice(0, 5);
+    var heroRows = dedupe(pool.slice()).sort(byHotDesc).slice(0, 5);
     if (heroRows.length >= 3) {
       var hrEl = document.createElement("div"); hrEl.className = "heroRow"; hrEl.id = "heroRow";
       heroRows.forEach(function (row) {
@@ -1185,7 +1294,7 @@
     var cont = [];
     getWH().forEach(function (h) {
       var p = prog[String(h.id)];
-      if (p && (p.wsec || 0) >= 900 && (!h.epsTotal || p.ep < h.epsTotal)) cont.push(h);
+      if (p && (p.wsec || 0) >= 900 && (!h.epsTotal || p.ep < h.epsTotal) && !isBlocked(h)) cont.push(h);
     });
     cont.sort(function (a, b) {
       var pa = prog[String(a.id)] || {}, pb = prog[String(b.id)] || {};
@@ -1224,7 +1333,7 @@
     var taste = SCONF.personalize ? tasteProfile() : {};
     var top = Object.keys(taste).sort(function (a, b) { return taste[b] - taste[a]; }).slice(0, 3);
     if (!top.length) top = ["国产剧", "国产动漫", "大陆综艺"];
-    var poolRec = dedupe(homePool.filter(function (row) {
+    var poolRec = dedupe(pool.filter(function (row) {
       if (seen[String(row.vod_id)]) return false;
       var r0 = ratingOf(row);
       return !(r0 > 0 && r0 < 6);   // 豆瓣低于 6 分的不进推荐
@@ -1235,7 +1344,7 @@
     }).map(function (row) {
       var tt = row.type_name || "", tw = 0;
       Object.keys(taste).forEach(function (k) { if (tt.indexOf(k) >= 0 || k.indexOf(tt) >= 0) tw = Math.max(tw, taste[k]); });
-      return { row: row, s: tw * 120 + bayesScore(row) * 12 + Math.log10(1 + hotScore(row)) * 40 };
+      return { row: row, s: tw * 120 + bayesScore(row) * 12 + Math.log10(1 + hotScore(row)) * 40 - softPenalty(row) };
     }).sort(function (a, b) { return b.s - a.s; });
     var capT = {}, recs = [];
     scoredRec.forEach(function (it) {
@@ -1255,7 +1364,7 @@
       gridIn(section("每日推荐", "按你的口味 · 评分加权"), recs, true);
     }
     // 4 热播榜(多周期加权热度 + 更新衰减)
-    var hot = dedupe(homePool.slice()).sort(byHotDesc).slice(0, 12);
+    var hot = dedupe(pool.slice()).sort(byHotDesc).slice(0, 12);
     if (hot.length) {
       var w4 = section("热播榜", "日/周/月热度加权");
       rowIn(w4, hot.map(function (row) {
@@ -1266,26 +1375,68 @@
         };
       }));
     }
+    // 4.1 月榜（本月播放量）
+    var monthRows = dedupe(pool.filter(function (row) { return num(row.vod_hits_month) > 0; }))
+      .sort(function (a, b) { return num(b.vod_hits_month) - num(a.vod_hits_month) || hotScore(b) - hotScore(a); }).slice(0, 10);
+    if (monthRows.length >= 3) {
+      var wm = section("月榜", "本月播放量");
+      rowIn(wm, monthRows.map(function (row) {
+        return { row: row, tag: "月热" + fmtHot(num(row.vod_hits_month)), sub: [row.type_name, row.vod_year].filter(Boolean).join(" · "), onClick: function () { openDetail(row); } };
+      }));
+    }
+    // 4.2 飙升榜（今日 vs 本周日均，近似口径）
+    var riseRows = dedupe(pool.filter(function (row) { return riseScore(row) > 0; }))
+      .sort(function (a, b) { return riseScore(b) - riseScore(a) || hotScore(b) - hotScore(a); }).slice(0, 10);
+    if (riseRows.length >= 3) {
+      var wr = section("飙升榜", "今日/本周日均（近似）");
+      rowIn(wr, riseRows.map(function (row) {
+        return { row: row, tag: "今日热" + fmtHot(num(row.vod_hits_day)), sub: [row.type_name, row.vod_year].filter(Boolean).join(" · "), onClick: function () { openDetail(row); } };
+      }));
+    }
     // 4.5 口碑高分（贝叶斯平均，评分数够多才入榜，避免新片虚高）
-    var rated = dedupe(homePool.filter(function (row) {
+    var rated = dedupe(pool.filter(function (row) {
       return ratingOf(row) > 0 && votesOf(row) >= 200 && !seen[String(row.vod_id)];
     })).sort(function (a, b) { return bayesScore(b) - bayesScore(a); }).slice(0, 6);
     if (rated.length >= 3) {
       rated.forEach(function (r) { seen[String(r.vod_id)] = 1; });
       gridIn(section("口碑高分", "豆瓣评分 · 贝叶斯加权"), rated, false);
     }
+    // 4.6 专题片单（静态规则生成，空则隐藏；不接运营后台）
+    SPECIALS.forEach(function (sp) {
+      var rows = dedupe(pool.filter(function (row) {
+        return !seen[String(row.vod_id)] && !isBlocked(row) && sp.rule(row);
+      })).sort(byHotDesc).slice(0, 10);
+      if (rows.length >= 4) {
+        rows.forEach(function (r) { seen[String(r.vod_id)] = 1; });
+        var ws = section("专题 · " + sp.title, sp.sub);
+        rowIn(ws, rows.map(function (row) {
+          return {
+            row: row, tag: "专题",
+            sub: [row.type_name, row.vod_year].filter(Boolean).join(" · "),
+            onClick: function () { openDetail(row); }
+          };
+        }));
+      }
+    });
     // 5 重磅新剧(本年国产)
     var yr = String(new Date().getFullYear());
-    var fresh = dedupe(homePool.filter(function (row) {
+    var fresh = dedupe(pool.filter(function (row) {
       return row.vod_year === yr && /国产|大陆/.test(row.type_name || "") && !seen[String(row.vod_id)];
     })).sort(function (a, b) { return cnScore(b) - cnScore(a); }).slice(0, 6);
     if (fresh.length) gridIn(section("重磅新剧", yr + " · 国产"), fresh, false);
     // 6 正在更新(其余,国产优先,少量国外爆款靠热度自然进入)
-    var rest = dedupe(homePool.filter(function (row) { return !seen[String(row.vod_id)]; }))
+    var rest = dedupe(pool.filter(function (row) { return !seen[String(row.vod_id)]; }))
       .sort(function (a, b) { return cnScore(b) - cnScore(a); }).slice(0, 24);
     if (rest.length) gridIn(section("正在更新", "国产优先 · 每日更新"), rest, true);
-    prefetchDetails(homePool);
+    prefetchDetails(pool);
   }
+  var SPECIALS = [
+    { title: "国漫年番", sub: "国产动漫 · 长期更新", rule: function (r) { return /国产动漫/.test(r.type_name || "") && /年番|第.{1,4}季|全集|更新/.test(r.vod_name || ""); } },
+    { title: "高分悬疑", sub: "悬疑/犯罪 · 豆瓣 7.5+", rule: function (r) { return /悬疑|犯罪|惊悚|推理/.test((r.vod_class || "") + (r.type_name || "")) && ratingOf(r) >= 7.5; } },
+    { title: "完结神作", sub: "已完结 · 豆瓣 8+", rule: function (r) { return num(r.vod_isend) && ratingOf(r) >= 8; } },
+    { title: "合家欢", sub: "喜剧/家庭/动画", rule: function (r) { return /喜剧|家庭|动画/.test((r.vod_class || "") + (r.type_name || "")) && !/恐怖|惊悚/.test((r.vod_class || "") + (r.vod_name || "")); } },
+    { title: "近期新剧", sub: "近两年 · 剧集", rule: function (r) { var y = parseInt(r.vod_year, 10) || 0; return y >= new Date().getFullYear() - 1 && /剧$/.test(r.type_name || ""); } }
+  ];
   var BOARDS = [
     { title: "热播榜", en: "HOT", match: null },
     { title: "电视剧榜", en: "TV SERIES", match: /剧/ },
@@ -1298,7 +1449,7 @@
     if (!box) return;
     box.style.display = "flex";
     box.innerHTML = "";
-    [["hot", "综合"], ["day", "日榜"], ["week", "周榜"], ["all", "总榜"]].forEach(function (s) {
+    [["hot", "综合"], ["day", "日榜"], ["week", "周榜"], ["month", "月榜"], ["rise", "飙升"], ["score", "高分"], ["all", "总榜"]].forEach(function (s) {
       var b = document.createElement("span");
       b.className = "chip" + (state.boardSort === s[0] ? " on" : "");
       b.textContent = s[1];
@@ -1318,13 +1469,23 @@
     grid.className = "boards";
     grid.innerHTML = "";
     var key = state.boardSort;
-    $("hotSec").innerHTML = "榜单 <small>" + ({ hot: "综合热度", day: "今日播放量", week: "本周播放量", all: "累计播放量" }[key] || "综合热度") + " · 左右滑动查看更多</small>";
+    $("hotSec").innerHTML = "榜单 <small>" + ({ hot: "综合热度", day: "今日播放量", week: "本周播放量", month: "本月播放量", rise: "今日/本周日均（近似）", score: "豆瓣评分 · 贝叶斯", all: "累计播放量" }[key] || "综合热度") + " · 左右滑动查看更多</small>";
     function metric(row) {
-      return key === "day" ? num(row.vod_hits_day) : key === "week" ? num(row.vod_hits_week) : key === "all" ? num(row.vod_hits) : hotScore(row);
+      if (key === "day") return num(row.vod_hits_day);
+      if (key === "week") return num(row.vod_hits_week);
+      if (key === "month") return num(row.vod_hits_month);
+      if (key === "rise") return riseScore(row);
+      if (key === "score") return bayesScore(row);
+      if (key === "all") return num(row.vod_hits);
+      return hotScore(row);
     }
     BOARDS.forEach(function (b) {
       var rows = dedupe(homePool.filter(function (row) {
         var tn = row.type_name || "";
+        if (isBlocked(row)) return false;
+        if (key === "score" && !(ratingOf(row) > 0 && votesOf(row) >= 100)) return false;
+        if (key === "month" && !num(row.vod_hits_month)) return false;
+        if (key === "rise" && !riseScore(row)) return false;
         return !b.match || b.match.test(tn);
       }));
       rows.sort(function (a, b2) {
@@ -1345,9 +1506,16 @@
         d.innerHTML = '<span class="no no' + (i + 1) + '">' + (i + 1) + '</span><img loading="lazy" decoding="async" alt="">' +
           '<div style="flex:1;min-width:0"><div class="rn"></div><div class="rm"></div></div>';
         if (row.vod_pic) d.querySelector("img").src = row.vod_pic;
-        var hv = key === "day" ? num(row.vod_hits_day) : key === "week" ? num(row.vod_hits_week) : key === "all" ? num(row.vod_hits) : hitsOf(row);
+        var hvTxt = "";
+        if (key === "day") hvTxt = "热" + fmtHot(num(row.vod_hits_day));
+        else if (key === "week") hvTxt = "热" + fmtHot(num(row.vod_hits_week));
+        else if (key === "month") hvTxt = "月热" + fmtHot(num(row.vod_hits_month));
+        else if (key === "rise") hvTxt = "今日热" + fmtHot(num(row.vod_hits_day));
+        else if (key === "score") { var sr = ratingOf(row); hvTxt = sr ? "豆瓣 " + sr.toFixed(1) : ""; }
+        else if (key === "all") hvTxt = "热" + fmtHot(num(row.vod_hits));
+        else hvTxt = "热" + fmtHot(hitsOf(row));
         d.querySelector(".rn").textContent = row.vod_name;
-        d.querySelector(".rm").textContent = [[row.type_name, row.vod_year].filter(Boolean).join(" · "), hv ? "热" + fmtHot(hv) : ""].filter(Boolean).join(" · ");
+        d.querySelector(".rm").textContent = [[row.type_name, row.vod_year].filter(Boolean).join(" · "), hvTxt].filter(Boolean).join(" · ");
         var openRow = function () { openDetail(row); };
         d.onclick = openRow;
         kbActivate(d, openRow, row.vod_name);
@@ -1497,6 +1665,7 @@
     for (var ci = 0; ci < CATS.length; ci++) { if (CATS[ci].id === state.catId) { catName = CATS[ci].name; break; } }
     var rows = dedupe(catPool.filter(function (row) {
       var tn = row.type_name || "";
+      if (isBlocked(row)) return false;
       if (tn && catName && tn !== catName) return false;  // 资源站分类混入其他类型时按标注剔除
       if (state.cnOnly && !/国产|大陆/.test(tn)) return false;
       return true;
@@ -1516,10 +1685,72 @@
   /* ---------- 搜索（画质探测+⭐推荐+历史） ---------- */
   var searching = false;
   var lastQuery = "";
+  function typeBucket(t) {
+    t = String(t || "");
+    if (/动漫|动画/.test(t)) return "动漫";
+    if (/综艺/.test(t)) return "综艺";
+    if (/纪录片/.test(t)) return "纪录片";
+    if (/片$|电影/.test(t)) return "电影";
+    if (/剧/.test(t)) return "剧集";
+    return "其他";
+  }
+  function areaBucket(a) {
+    a = String(a || "");
+    if (!a) return "";
+    if (/大陆|内地|国产|中国/.test(a)) return "大陆";
+    if (/香港|港台/.test(a)) return "香港";
+    if (/台湾/.test(a)) return "台湾";
+    if (/韩国/.test(a)) return "韩国";
+    if (/日本/.test(a)) return "日本";
+    if (/美国/.test(a)) return "美国";
+    if (/泰国/.test(a)) return "泰国";
+    if (/英国/.test(a)) return "英国";
+    if (/法国/.test(a)) return "法国";
+    return a.slice(0, 6);
+  }
+  function filtersActive() {
+    var f = state.searchFilters;
+    return !!(f.type || f.cls || f.area || f.year);
+  }
+  function buildSearchFacets(pool) {
+    var cls = {}, area = {}, years = {};
+    (pool || []).forEach(function (r) {
+      tokensOf(r.vod_class).forEach(function (t) {
+        t = String(t || "").trim();
+        if (t.length >= 2 && t.length <= 6) cls[t] = (cls[t] || 0) + 1;
+      });
+      var a = areaBucket(r.vod_area);
+      if (a) area[a] = (area[a] || 0) + 1;
+      var y = parseInt(r.vod_year, 10);
+      if (y) years[y] = (years[y] || 0) + 1;
+    });
+    state.searchFacets = {
+      cls: Object.keys(cls).sort(function (a, b) { return cls[b] - cls[a]; }).slice(0, 12),
+      area: Object.keys(area).sort(function (a, b) { return area[b] - area[a]; }).slice(0, 10),
+      years: Object.keys(years).map(Number).sort(function (a, b) { return b - a; }).slice(0, 6)
+    };
+  }
+  function matchSearchFilters(row) {
+    var f = state.searchFilters;
+    if (f.type && typeBucket(row.type_name) !== f.type) return false;
+    if (f.cls && tokensOf(row.vod_class).indexOf(f.cls) < 0) return false;
+    if (f.area && areaBucket(row.vod_area) !== f.area) return false;
+    if (f.year) {
+      var y = parseInt(row.vod_year, 10) || 0;
+      if (f.year === "更早") {
+        var ys = state.searchFacets.years;
+        var minY = ys.length ? ys[ys.length - 1] : 0;
+        if (!(y && minY && y < minY)) return false;
+      } else if (String(row.vod_year || "") !== f.year) return false;
+    }
+    return true;
+  }
   function paintSearchGrid() {
     var list = (state.searchList || []).slice();
     var q = state.searchQ || "";
-    if (state.searchSort === "score") list.sort(function (a, b) { return (ratingOf(b) - ratingOf(a)) || (votesOf(b) - votesOf(a)); });
+    if (state.searchSort === "hot") list.sort(byHotDesc);
+    else if (state.searchSort === "hits") list.sort(function (a, b) { return (num(b.vod_hits) - num(a.vod_hits)) || (hotScore(b) - hotScore(a)); });
+    else if (state.searchSort === "score") list.sort(function (a, b) { return (ratingOf(b) - ratingOf(a)) || (votesOf(b) - votesOf(a)); });
     else if (state.searchSort === "new") list.sort(function (a, b) { return String(b.vod_time || "").localeCompare(String(a.vod_time || "")) || (hotScore(b) - hotScore(a)); });
     else list.sort(function (a, b) { return matchScore(b, q) - matchScore(a, q); });
     var grid = $("searchGrid"); grid.innerHTML = "";
@@ -1527,22 +1758,156 @@
   }
   function renderSearchSort() {
     var box = $("searchSort");
-    var has = (state.searchList || []).length > 0;
+    var has = (state.searchPool || []).length > 0;
     box.style.display = has ? "flex" : "none";
     box.innerHTML = "";
     if (!has) return;
-    [["rel", "相关度"], ["score", "评分"], ["new", "最新"]].forEach(function (s) {
+    [["rel", "相关度"], ["hot", "最热"], ["new", "最新"], ["score", "评分"], ["hits", "播放量"]].forEach(function (s) {
       var b = document.createElement("span");
       b.className = "chip" + (state.searchSort === s[0] ? " on" : "");
       b.textContent = s[1];
       b.onclick = function () {
         if (state.searchSort === s[0]) return;
         state.searchSort = s[0];
-        renderSearchSort(); paintSearchGrid();
-        status("search", "共 " + state.searchList.length + " 个结果 · 已按" + s[1] + "排序");
+        applySearchView();
       };
       box.appendChild(b);
     });
+  }
+  function renderSearchFilters() {
+    var box = $("searchFilters");
+    if (!box) return;
+    var has = (state.searchPool || []).length > 0;
+    box.style.display = has ? "block" : "none";
+    box.innerHTML = "";
+    if (!has) return;
+    var f = state.searchFilters, facets = state.searchFacets;
+    function row(label, opts, val, allText, key) {
+      var w = document.createElement("div"); w.className = "fchips";
+      var fl = document.createElement("span"); fl.className = "fl"; fl.textContent = label;
+      var c = document.createElement("div"); c.className = "chips";
+      [""].concat(opts).forEach(function (o) {
+        var b = document.createElement("span");
+        b.className = "chip" + (val === o ? " on" : "");
+        b.textContent = o === "" ? allText : o;
+        b.onclick = function () {
+          if (state.searchFilters[key] === o) return;
+          state.searchFilters[key] = o;
+          applySearchView();
+        };
+        c.appendChild(b);
+      });
+      w.appendChild(fl); w.appendChild(c); box.appendChild(w);
+    }
+    row("类型", ["电影", "剧集", "动漫", "综艺", "纪录片"], f.type, "全部", "type");
+    row("题材", facets.cls, f.cls, "全部", "cls");
+    row("地区", facets.area, f.area, "全部", "area");
+    row("年份", facets.years.map(String).concat(["更早"]), f.year, "全部", "year");
+    if (filtersActive()) {
+      var w = document.createElement("div"); w.className = "fchips";
+      var fl = document.createElement("span"); fl.className = "fl"; fl.textContent = "筛选";
+      var c = document.createElement("div"); c.className = "chips";
+      var b = document.createElement("span"); b.className = "chip schipclr"; b.textContent = "清除筛选";
+      b.onclick = function () { state.searchFilters = { type: "", cls: "", area: "", year: "" }; applySearchView(); };
+      c.appendChild(b); w.appendChild(fl); w.appendChild(c); box.appendChild(w);
+    }
+  }
+  function updateSearchStatus(extra) {
+    var total = state.searchTotal || (state.searchPool || []).length;
+    var shown = (state.searchList || []).length;
+    var loaded = (state.searchPool || []).length;
+    var parts = [];
+    if (state.searchNote) parts.push(state.searchNote);
+    parts.push("共 " + total + " 部");
+    parts.push("已显示 " + shown + " 部");
+    if (loaded < total) parts.push("已加载 " + loaded + " 部");
+    if (filtersActive()) parts.push("已筛选");
+    if (extra) parts.push(extra);
+    status("search", parts.join(" · "));
+  }
+  function renderSearchMore() {
+    var box = $("searchMore"); if (!box) return;
+    box.innerHTML = "";
+    if (!(state.searchPool || []).length) return;
+    if (state.searchPage < state.searchPageCount && state.searchPool.length < state.searchTotal) {
+      var b = document.createElement("button");
+      b.className = "more";
+      b.textContent = "加载更多（已显示 " + state.searchPool.length + " / 共 " + state.searchTotal + "）";
+      b.onclick = loadSearchMore;
+      box.appendChild(b);
+    }
+  }
+  var searchMoreLoading = false;
+  function loadSearchMore() {
+    if (searchMoreLoading || !state.searchQ || state.searchPage >= state.searchPageCount) return;
+    searchMoreLoading = true;
+    var gen = state.searchGen;
+    var next = Math.min(state.searchPage + 1, SEARCH_CONF.maxPages, state.searchPageCount);
+    if (next <= state.searchPage) { searchMoreLoading = false; return; }
+    state.searchPage = next;
+    status("search", "加载更多…");
+    api(API + "?ac=videolist&wd=" + encodeURIComponent(state.searchQ) + "&pg=" + state.searchPage, { front: true, retries: 1 }).then(function (j) {
+      if (gen !== state.searchGen) return;
+      var fresh = dedupe((j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; }));
+      state.searchPool = dedupe(state.searchPool.concat(fresh));
+      state.searchTotal = Number(j.total) || state.searchTotal;
+      state.searchPageCount = Math.min(SEARCH_CONF.maxPages, Number(j.pagecount) || Math.ceil(state.searchTotal / 20) || state.searchPageCount);
+      if (!fresh.length) state.searchPage = state.searchPageCount;
+      buildSearchFacets(state.searchPool);
+      applySearchView();
+      updateSearchStatus(fresh.length ? "" : "没有更多了");
+    }).catch(function () {
+      if (gen !== state.searchGen) return;
+      state.searchPage = Math.max(1, state.searchPage - 1);
+      renderSearchMore();
+      status("search", "加载更多失败，点此重试");
+      var st = $("st-search"); st.style.cursor = "pointer"; st.onclick = function () { st.style.cursor = ""; st.onclick = null; loadSearchMore(); };
+    }).finally(function () { searchMoreLoading = false; });
+  }
+  function applySearchView() {
+    state.searchViewGen = (state.searchViewGen || 0) + 1;
+    var list = (state.searchPool || []).filter(function (row) { return !isBlocked(row) && matchSearchFilters(row); });
+    state.searchList = list;
+    paintSearchGrid();
+    renderSearchSort();
+    renderSearchFilters();
+    renderSearchMore();
+    updateSearchStatus();
+  }
+  function aliasTerms(q) {
+    var out = [];
+    (SEARCH_CONF.aliases || []).forEach(function (p) {
+      if (p[0] === q) out.push(p[1]);
+      else if (p[1] === q) out.push(p[0]);
+      else if (q.indexOf(p[1]) >= 0) return;
+      else if (q.indexOf(p[0]) >= 0) out.push(q.replace(p[0], p[1]));
+    });
+    return out.filter(function (x, i) { return x && x !== q && out.indexOf(x) === i; }).slice(0, 2);
+  }
+  function editDist(a, b) {
+    a = String(a); b = String(b);
+    var m = a.length, n = b.length, i, j, prev = [], cur;
+    if (!m) return n; if (!n) return m;
+    for (j = 0; j <= n; j++) prev[j] = j;
+    for (i = 1; i <= m; i++) {
+      cur = [i];
+      for (j = 1; j <= n; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[n];
+  }
+  function correctSearchTerm(q) {
+    if (!q || !homePool.length) return "";
+    var best = "", bd = 99;
+    var names = homePool.map(function (r) { return r.vod_name || ""; }).filter(Boolean);
+    names.slice(0, 200).forEach(function (n) {
+      if (Math.abs(n.length - q.length) > 3) return;
+      var d = editDist(q, n);
+      if (d < bd && d > 0) { bd = d; best = n; }
+    });
+    return bd <= 1 ? best : "";
   }
   function doSearch() {
     var raw = ($("q").value || "").trim();
@@ -1552,67 +1917,101 @@
     window.scrollTo(0, 0);
     if (searching) return;
     searching = true; $("go").disabled = true; $("err").textContent = "";
+    state.searchGen++;
+    var gen = state.searchGen;
+    state.searchPool = []; state.searchList = []; state.searchTotal = 0;
+    state.searchPage = 1; state.searchPageCount = 1; state.searchNote = ""; state.searchViewGen = 0;
+    state.searchFilters = { type: "", cls: "", area: "", year: "" };
+    state.searchFacets = { cls: [], area: [], years: [] };
     status("search", "搜索「" + raw + "」…");
     $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
     $("searchGrid").appendChild(skGrid(9));
     $("hotSec").style.display = "none"; $("hotGrid").innerHTML = ""; $("boardSort").style.display = "none";
     $("shist").innerHTML = ""; $("sugBox").style.display = "none"; $("sugBox").innerHTML = "";
-    sugGen++; clearTimeout(sugTimer);   // 作废飞行中的联想响应,防止结果页被联想回填
+    $("searchFilters").style.display = "none"; $("searchMore").innerHTML = ""; $("searchSort").style.display = "none";
+    $("st-search").onclick = null; $("st-search").style.cursor = "";
+    sugGen++; clearTimeout(sugTimer);
     state.epHint = parseHint(raw);
-    var title = raw.replace(/第?\s*\d{1,4}\s*[集期话]/g, "").replace(/^[，,。.\s]+|[，,。.\s]+$/g, "").trim() || raw;
+    var title = raw.replace(/第?s*d{1,4}s*[集期话]/g, "").replace(/^[，,。.s]+|[，,。.s]+$/g, "").trim() || raw;
     try {
       var sh = getJ("m_shist", "[]");
       sh = [raw].concat(sh.filter(function (x) { return x !== raw; })).slice(0, 8);
-      setJ("m_shist", sh);   // 保存但不渲染：搜索结果页不显示历史，回到搜索页时再显示
+      setJ("m_shist", sh);
     } catch (e) {}
-    api(API + "?ac=videolist&wd=" + encodeURIComponent(title)).then(function (j) {
-      var list = dedupe((j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; }));
-      if (!list.length) { $("searchGrid").innerHTML = ""; status("search", "未收录「" + title + "」，换个叫法试试"); return; }
-      // 相关度排序：精确名 > 前缀 > 包含 > 散字命中，叠加热度/评分/年份新鲜度
-      list.sort(function (a, b) { return matchScore(b, title) - matchScore(a, title); });
-      state.searchList = list;
-      state.searchQ = title;
-      state.searchSort = "rel";
-      renderSearchSort();
-      status("search", "搜到 " + list.length + " 个结果 · 按相关度排序 · 探测画质中…");
-      var grid = $("searchGrid"); grid.innerHTML = "";
-      list.forEach(function (row) {
-        var c = pcard(row, function () { openDetail(row); });
-        grid.appendChild(c);
+    var terms = [title];
+    aliasTerms(title).forEach(function (x) { if (terms.indexOf(x) < 0) terms.push(x); });
+    var corr = correctSearchTerm(title);
+    if (corr && terms.indexOf(corr) < 0) terms.push(corr);
+    function tryTerm(i) {
+      if (i >= terms.length) return Promise.resolve(null);
+      return api(API + "?ac=videolist&wd=" + encodeURIComponent(terms[i]), { retries: 1 }).then(function (j) {
+        if (gen !== state.searchGen) return null;
+        var list = dedupe((j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; }));
+        if (list.length) return { j: j, term: terms[i], list: list };
+        return tryTerm(i + 1);
       });
+    }
+    tryTerm(0).then(function (res) {
+      if (gen !== state.searchGen) return;
+      if (!res) {
+        $("searchGrid").innerHTML = "";
+        $("searchSort").style.display = "none"; $("searchFilters").style.display = "none"; $("searchMore").innerHTML = "";
+        var alt = aliasTerms(title)[0] || correctSearchTerm(title);
+        if (alt) {
+          status("search", "未收录「" + title + "」，点此试试「" + alt + "」");
+          var st = $("st-search"); st.style.cursor = "pointer"; st.onclick = function () { $("q").value = alt; doSearch(); };
+        } else status("search", "未收录「" + title + "」，换个叫法试试");
+        return;
+      }
+      var term = res.term, list = res.list;
+      state.searchQ = term;
+      state.searchPool = list;
+      state.searchTotal = Number(res.j.total) || list.length;
+      state.searchPageCount = Math.min(SEARCH_CONF.maxPages, Number(res.j.pagecount) || Math.ceil(state.searchTotal / 20) || 1);
+      state.searchSort = "rel";
+      state.searchNote = term !== title ? "已按「" + term + "」搜索" : "";
+      buildSearchFacets(list);
+      applySearchView();
+      updateSearchStatus("探测画质中…");
       prefetchDetails(list);
+      var grid = $("searchGrid");
+      var probeView = state.searchViewGen;
       var jobs = list.slice(0, 8).map(function (row, k) {
-        return new Promise(function (res) {
+        return new Promise(function (resolve) {
           setTimeout(function () {
             var e0 = epsOf(row)[0];
-            if (!e0) { res({ row: row, w: 0, tag: "", idx: k }); return; }
+            if (!e0) { resolve({ w: 0, tag: "", idx: k }); return; }
             probeRes(e0.url).then(function (r) {
+              if (gen !== state.searchGen || probeView !== state.searchViewGen) { resolve({ w: 0, tag: "", idx: k }); return; }
               var card = grid.children[k];
               if (card && r.tag) {
                 var q = card.querySelector(".rq");
-                q.textContent = r.tag; q.style.display = "block";
-                q.className = "rq" + (r.w >= 1080 ? "" : " new");
+                if (q) { q.textContent = r.tag; q.style.display = "block"; q.className = "rq" + (r.w >= 1080 ? "" : " new"); }
               }
-              res({ row: row, w: r.w, tag: r.tag, idx: k });
-            }).catch(function () { res({ row: row, w: 0, tag: "", idx: k }); });
+              resolve({ row: row, w: r.w, tag: r.tag, idx: k });
+            }).catch(function () { resolve({ w: 0, tag: "", idx: k }); });
           }, k * 300);
         });
       });
       Promise.all(jobs).then(function (rs) {
+        if (gen !== state.searchGen || probeView !== state.searchViewGen) return;
         var best = null;
         rs.forEach(function (r) { if (r.w > 0 && (!best || r.w > best.w)) best = r; });
         if (best) {
           var card = grid.children[best.idx];
           if (card) {
             var star = card.querySelector(".rq");
-            star.textContent = "⭐ " + best.tag + " · 推荐";
-            star.className = "rq star";
+            if (star) { star.textContent = "⭐ " + best.tag + " · 推荐"; star.className = "rq star"; }
           }
         }
-        status("search", "⭐ 为最高清资源");
+        updateSearchStatus(best ? "⭐ 最高清已标出" : "");
       });
-    }).catch(function (e) { $("searchGrid").innerHTML = ""; status("search", "搜索失败：" + e.message); })
-      .finally(function () { searching = false; $("go").disabled = false; });
+    }).catch(function (e) {
+      if (gen !== state.searchGen) return;
+      $("searchGrid").innerHTML = "";
+      $("searchSort").style.display = "none"; $("searchFilters").style.display = "none"; $("searchMore").innerHTML = "";
+      status("search", "搜索失败：" + (e && e.message ? e.message : "网络错误"));
+    }).finally(function () { if (gen === state.searchGen) { searching = false; $("go").disabled = false; } });
   }
   $("go").onclick = doSearch;
   $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
@@ -1669,7 +2068,7 @@
   function sugLocal(kw) {
     var lkw = kw.toLowerCase();
     return homePool.filter(function (r) {
-      return r.vod_name && r.vod_name.toLowerCase().indexOf(lkw) >= 0;
+      return r.vod_name && r.vod_name.toLowerCase().indexOf(lkw) >= 0 && !isBlocked(r);
     }).slice(0, 8);
   }
   function sugNet(kw, gen) {
@@ -1687,7 +2086,7 @@
       throw e;
     }).then(function (j) {
       if (sugCtl !== ctl || gen !== sugGen || state.view !== "search") return;
-      var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url; }).slice(0, 8);
+      var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url && !isBlocked(x); }).slice(0, 8);
       if (list.length) sugRender(list, kw, false);
       else if (!sugLocal(kw).length) sugFallback(kw);
     }).catch(function () {});
@@ -1994,7 +2393,7 @@
     var relGen = detailGen, relId = String(row.vod_id);
     sec.style.display = "none"; box.innerHTML = "";
     var pool = dedupe(homePool.concat(catPool)).filter(function (x) {
-      return String(x.vod_id) !== String(row.vod_id) && x.vod_pic;
+      return String(x.vod_id) !== String(row.vod_id) && x.vod_pic && !isBlocked(x);
     });
     function paint(list) {
       if (relGen !== detailGen || !detailRow || String(detailRow.vod_id) !== relId || $("detail").style.display !== "block") return;
@@ -3515,7 +3914,7 @@
   }
   $("clearData").onclick = function () {
     if (!confirm("确定清除本机的追剧 / 观看历史 / 解析记录吗？")) return;
-    ["m_follow", "m_fav", "m_prog", "m_whist", "m_shist", "m_plist", "m_purl"].forEach(function (k) {
+    ["m_follow", "m_fav", "m_prog", "m_whist", "m_shist", "m_plist", "m_purl", "m_block"].forEach(function (k) {
       try { localStorage.removeItem(k); } catch (e) {}
     });
     renderHome(); renderFollow(); renderHist(); renderPList();
@@ -3590,6 +3989,22 @@
       SCONF.historyKeep = v;
     }, function (v) { return v === 0 ? "永不" : v + " 天"; });
     swRow(g2, "个性化推荐", "关闭后只用热门兜底，不读取观看/追剧记录", "personalize");
+
+    var gb = settingsSection("不感兴趣");
+    var bl = getBlock();
+    var rb = sItem(gb, "已屏蔽 " + bl.length + " 项", "从首页/搜索/相关推荐中移除，可随时清除");
+    var cb = document.createElement("button");
+    cb.textContent = bl.length ? "清除" : "暂无";
+    cb.disabled = !bl.length;
+    cb.style.cssText = "padding:7px 12px;font-size:12px;border-radius:7px;border:1px solid #2f3540;background:transparent;color:#c9ced6;flex-shrink:0;opacity:" + (bl.length ? "1" : ".45");
+    cb.onclick = function () {
+      if (!confirm("清除全部不感兴趣记录？")) return;
+      setBlock([]);
+      renderSettings(); renderHome(); renderCatGrid();
+      if (state.view === "search" && state.searchPool.length) applySearchView();
+      tip("已清除不感兴趣记录");
+    };
+    rb.appendChild(cb);
 
     var g3 = settingsSection("缓存");
     swRow(g3, "仅 Wi-Fi 下缓存", "iOS 读不到网络类型，无法判断时仍允许", "wifiOnlyCache");
