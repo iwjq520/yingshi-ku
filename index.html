@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="75">
+<meta name="appver" content="76">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -486,7 +486,8 @@
     -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1); }
   #dNav::-webkit-scrollbar { display: none; }
   #dNav button { flex-shrink: 0; padding: 6px 12px; font-size: 12px; border-radius: 999px;
-    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: #9aa0a8; }
+    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: #9aa0a8;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: pointer; }
   #dNav button.on { border-color: rgba(255,143,31,.8); color: #ff9d45; background: rgba(255,143,31,.14); }
   body.light #dNav {
     background: linear-gradient(180deg, rgba(245,246,248,.95) 0%, rgba(245,246,248,.8) 62%, rgba(245,246,248,0) 100%); }
@@ -2729,18 +2730,12 @@
   (function () {
     var nav = $("dNav");
     if (!nav) return;
-    nav.addEventListener("click", function (e) {
-      var b = e.target.closest && e.target.closest("button");
-      if (!b) return;
-      var el = $(b.getAttribute("data-t"));
-      if (!el || el.style.display === "none") return;
-      nav.querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
-      var d = $("detail");
-      var top = Math.max(0, el.getBoundingClientRect().top - d.getBoundingClientRect().top + d.scrollTop - 52);
-      try { d.scrollTo({ top: top, behavior: "smooth" }); } catch (err) { d.scrollTop = top; }
-      setTimeout(function () { if (Math.abs(d.scrollTop - top) > 4) d.scrollTop = top; }, 450);
-    });
-    $("detail").addEventListener("scroll", function () {
+    var navBtns = nav.querySelectorAll("button");
+    var navLock = 0, navTimer = null;
+    function setNavActive(id) {
+      navBtns.forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-t") === id); });
+    }
+    function navBestId() {
       var d = $("detail"), best = "", first = "", last = "";
       ["dIntroSec", "dEpSec", "dRelSec", "dDirSec", "dActSec"].forEach(function (id) {
         var el = $(id);
@@ -2751,9 +2746,39 @@
         if (t <= 120) best = id;
       });
       if (d.scrollTop + d.clientHeight >= d.scrollHeight - 2) best = last;
-      if (!best) best = first;
-      nav.querySelectorAll("button").forEach(function (b) {
-        b.classList.toggle("on", b.getAttribute("data-t") === best);
+      return best || first;
+    }
+    nav.addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest("button");
+      if (!b) return;
+      var el = $(b.getAttribute("data-t"));
+      if (!el || el.style.display === "none") return;
+      setNavActive(b.getAttribute("data-t"));
+      var d = $("detail");
+      var top = Math.max(0, el.getBoundingClientRect().top - d.getBoundingClientRect().top + d.scrollTop - 52);
+      var maxTop = d.scrollHeight - d.clientHeight;
+      if (top > maxTop) top = maxTop;      // 目标靠近页尾时到不了 52px 偏移，取可达落点
+      navLock = Date.now() + 700;          // 平滑滚动期间高亮只跟点击，不被 scroll 监听抢占
+      clearInterval(navTimer);
+      try { d.scrollTo({ top: top, behavior: "smooth" }); } catch (err) { d.scrollTop = top; }
+      navTimer = setInterval(function () {
+        var arrived = Math.abs(d.scrollTop - top) < 2;
+        if (arrived) clearInterval(navTimer);
+        if (arrived || Date.now() > navLock + 400) {
+          d.scrollTop = top;               // iOS 上 smooth 偶发中止，直接对齐目标
+          clearInterval(navTimer);
+          navLock = 0;
+        }
+      }, 60);
+    });
+    var navTicking = false;
+    $("detail").addEventListener("scroll", function () {
+      if (navTicking) return;
+      navTicking = true;
+      requestAnimationFrame(function () {
+        navTicking = false;
+        if (Date.now() < navLock) return;  // 点击后的程序滚动不抢高亮
+        setNavActive(navBestId());
       });
     }, { passive: true });
   })();
