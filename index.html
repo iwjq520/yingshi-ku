@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="63">
+<meta name="appver" content="64">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -325,6 +325,73 @@
     align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 16px; }
   #pShot img { max-width: 100%; max-height: 74vh; border-radius: 6px; }
   #pShot small { color: #9aa0a8; font-size: 12px; }
+
+  /* ===== 阶段2-2：设置面板 ===== */
+  #settings { position: fixed; inset: 0; z-index: 80; background: #0f1114; display: none; overflow-y: auto;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    padding: calc(env(safe-area-inset-top) + 10px) max(14px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 24px) max(14px, env(safe-area-inset-left)); }
+  #settings .sh { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  #settings .sh b { font-size: 16px; font-weight: 600; }
+  #settings .sg { background: #171a20; border-radius: 12px; padding: 2px 12px; margin-bottom: 12px; }
+  #settings .sg h4 { font-size: 12px; color: #7d838c; font-weight: 500; padding: 12px 0 4px; }
+  #settings .sr { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid #1f232a; }
+  #settings .sg h4 + .sr { border-top: none; }
+  #settings .sr .sx { flex: 1; min-width: 0; }
+  #settings .sr .sl { font-size: 13.5px; color: #e8eaee; }
+  #settings .sr .sd { font-size: 11px; color: #6a7077; margin-top: 3px; line-height: 1.5; }
+  .sw { width: 44px; height: 26px; border-radius: 999px; background: #2a2f37; position: relative; border: none;
+    flex-shrink: 0; cursor: pointer; transition: background .18s; }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+    background: #8a9099; transition: left .18s, background .18s; }
+  .sw.on { background: #ff8f1f; }
+  .sw.on::after { left: 21px; background: #fff; }
+  .sopt { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 68%; }
+  .sopt button { padding: 6px 9px; font-size: 12px; border-radius: 7px; border: 1px solid #2f3540;
+    background: transparent; color: #c9ced6; cursor: pointer; }
+  .sopt button.on { border-color: #ff8f1f; color: #ff8f1f; font-weight: 600; }
+  .sopt button:disabled { color: #4a5058; border-color: #232730; }
+
+  /* 亮色主题（基础覆盖；播放器保持黑色） */
+  body.light { background: #f5f6f8; color: #171a20; }
+  body.light .sbar { background: rgba(245,246,248,.96); }
+  body.light .sbar .box { background: #e8eaee; }
+  body.light .sbar .box span { color: #6a7077; }
+  body.light .pcard .pn, body.light .hcard .pn, body.light .bsec, body.light .sec,
+  body.light .mineCard .mt, body.light .frow .fn, body.light .board .rn { color: #171a20; }
+  body.light .status { color: #8a9099; }
+  body.light .mineCard, body.light .frow, body.light .board, body.light #settings .sg {
+    background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+  body.light .chip { background: #e8eaee; color: #4a5058; }
+  body.light .chip.on { background: #ff8f1f; color: #fff; }
+  body.light .ep { background: #e8eaee; color: #3a4048; }
+  body.light .ep.on { background: #ffe2c2; color: #b35c00; }
+  body.light .ep.seen { background: #f0f1f4; color: #9aa0a8; }
+  body.light #tabbar { background: #fff; border-top-color: #e3e5e9; }
+  body.light #tabbar .tb { color: #8a9099; }
+  body.light #tabbar .tb.on { color: #ff8f1f; }
+  body.light .row input, body.light .prow input { background: #fff; color: #171a20; border-color: #e3e5e9; }
+  body.light .morebtn, body.light .more { background: #eceef2; color: #4a5058; }
+  body.light #detail { background: #f5f6f8; }
+  body.light .dn, body.light .dsec, body.light #settings .sh b, body.light #settings .sl { color: #171a20; }
+  body.light .dintro, body.light .dstaff, body.light .dm { color: #5a6069; }
+  body.light #settings { background: #f5f6f8; }
+  body.light #settings .sr { border-top-color: #e8eaee; }
+  body.light .sopt button { border-color: #d8dbe0; color: #4a5058; }
+  body.light .sopt button.on { border-color: #ff8f1f; color: #b35c00; }
+  body.light .frow .fx, body.light .mtbtn, body.light .prow .pclr { background: #eceef2; color: #4a5058; }
+  body.light .empty, body.light .about, body.light .dnote, body.light .pcard .pr,
+  body.light .hcard .pr, body.light .frow .fm, body.light .rank .rm { color: #8a9099; }
+  body.light .dact button { border-color: #d8dbe0; color: #3a4048; }
+  body.light .dact button.on { border-color: #ff8f1f; color: #b35c00; }
+  body.light .dchips i { background: rgba(0,0,0,.05); color: #4a5058; }
+  body.light .dintro, body.light .dstaff, body.light .dhead .dm { color: #5a6069; }
+  body.light .rank { border-bottom-color: #eceef2; }
+  body.light .sug { border-bottom-color: #eceef2; }
+  body.light .sug .sn { color: #171a20; }
+  body.light #detail::before { filter: blur(36px) brightness(1.9) saturate(.7); opacity: .55; }
+  body.light #detail .dn { text-shadow: none; }
+  body.fs-2 { zoom: 1.08; }
+  body.fs-3 { zoom: 1.16; }
 </style>
 </head>
 <body>
@@ -418,6 +485,7 @@
       </div>
       <div class="mineCard">
         <div class="mt">设置</div>
+        <button class="morebtn" id="openSettings" style="margin-bottom:8px">播放与外观设置</button>
         <button class="dangertool" id="clearData">清除本机数据（追剧 / 观看历史）</button>
       </div>
       <div class="mineCard">
@@ -466,6 +534,11 @@
     <div class="dnote" id="dNote"></div>
     <div class="dsec" id="dRelSec" style="display:none">相关推荐 <small>同类 · 同系列优先</small></div>
     <div class="hrow" id="dRel"></div>
+  </div>
+
+  <div id="settings">
+    <div class="sh"><span class="back" id="setBack" style="font-size:26px;line-height:1;padding:2px 8px 2px 0;cursor:pointer">‹</span><b>设置</b></div>
+    <div id="setBody"></div>
   </div>
 
   <div id="ply">
@@ -548,6 +621,42 @@
   function pushOv(kind) {
     if (!UCONF.historyBack) return;
     try { history.pushState({ ov: kind }, ""); pushN++; } catch (e) {}
+  }
+
+  /* ===== 用户设置（m_sconf 持久化；开关全部走这里，不在逻辑里写死） ===== */
+  var SDEF = {
+    speed: 1, preloadNext: true, autoPauseOnHide: true, prefHeight: 0, pipHotkey: false,
+    wifiOnlyCache: false, theme: "dark", fontScale: 1, historyKeep: 30, personalize: false
+  };
+  var SCONF = Object.assign({}, SDEF);
+  try { SCONF = Object.assign({}, SDEF, JSON.parse(localStorage.getItem("m_sconf") || "{}")); } catch (e) {}
+  function saveSCONF() { try { localStorage.setItem("m_sconf", JSON.stringify(SCONF)); } catch (e) {} }
+  function themeResolved() {
+    if (SCONF.theme === "auto") {
+      return (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+    }
+    return SCONF.theme === "light" ? "light" : "dark";
+  }
+  function trimHistory(days) {
+    if (!days) return;
+    var cut = Date.now() - days * 86400000;
+    var wh = getWH();
+    var wh2 = wh.filter(function (h) { return !h.t || h.t >= cut; });
+    if (wh2.length !== wh.length) setWH(wh2);
+    var prog = getProg(), changed = false;
+    Object.keys(prog).forEach(function (k) {
+      if (prog[k] && prog[k].t && prog[k].t < cut) { delete prog[k]; changed = true; }
+    });
+    if (changed) setProg(prog);
+  }
+  function applySettings() {
+    PCONF.preloadNext = !!SCONF.preloadNext;
+    var lt = themeResolved() === "light";
+    document.body.classList.toggle("light", lt);
+    document.body.classList.remove("fs-2", "fs-3");
+    if (SCONF.fontScale >= 1.14) document.body.classList.add("fs-3");
+    else if (SCONF.fontScale >= 1.05) document.body.classList.add("fs-2");
+    trimHistory(SCONF.historyKeep);
   }
 
   function mergeBySort(a, b) {
@@ -1030,7 +1139,7 @@
       }));
     }
     // 3 每日推荐（口味画像：45天半衰 + 评分加权 + 同类最多2部的多样性约束）
-    var taste = tasteProfile();
+    var taste = SCONF.personalize ? tasteProfile() : {};
     var top = Object.keys(taste).sort(function (a, b) { return taste[b] - taste[a]; }).slice(0, 3);
     if (!top.length) top = ["国产剧", "国产动漫", "大陆综艺"];
     var poolRec = dedupe(homePool.filter(function (row) {
@@ -1892,6 +2001,7 @@
   }
   window.addEventListener("popstate", function () {
     if (pushN > 0) pushN--;
+    if ($("settings").style.display === "block") { closeSettings(); return; }
     if ($("ply").style.display === "flex") { closePly(true); return; }
     if ($("detail").style.display === "block") { closeDetail(); }
   });
@@ -1944,7 +2054,12 @@
   }
   document.addEventListener("visibilitychange", function () {
     if (!state.curRow || $("ply").style.display !== "flex") return;
-    if (document.hidden) { saveSec(); sessSettle(); }
+    if (document.hidden) {
+      saveSec(); sessSettle();
+      if (SCONF.autoPauseOnHide && directMode && !document.pictureInPictureElement) {
+        try { $("pVideo").pause(); } catch (e) {}
+      }
+    }
     else sessStart(String(state.curRow.vod_id));
   });
   function renderPEplist() {
@@ -2020,6 +2135,16 @@
       });
       hlsInst.on(H.Events.MANIFEST_PARSED, function () {
         qualLevels = (hlsInst.levels || []).map(function (l) { return l.height || 0; });
+        // 默认清晰度：取最接近用户设定的一档
+        var pref = parseInt(SCONF.prefHeight, 10) || 0;
+        if (pref > 0 && qualLevels.length) {
+          var best = 0, bd = 1e9;
+          qualLevels.forEach(function (h, i) {
+            var d = Math.abs((h || 0) - pref);
+            if (d < bd) { bd = d; best = i; }
+          });
+          try { hlsInst.currentLevel = best; qualCur = best; } catch (e) {}
+        }
         if ($("pSpeed") && $("pSpeed").style.display === "flex") renderSpd();
       });
       hlsInst.on(H.Events.ERROR, function (e, d) {
@@ -2149,6 +2274,7 @@
       b.textContent = s + "x";
       b.onclick = function () {
         spd = s;
+        SCONF.speed = s; saveSCONF();
         try { localStorage.setItem("m_spd", String(s)); } catch (e) {}
         applySpd(); renderSpd();
       };
@@ -2418,6 +2544,7 @@
     else if (k === "ArrowDown") { e.preventDefault(); v.volume = Math.max(0, v.volume - 0.1); tip("音量 " + Math.round(v.volume * 100) + "%"); }
     else if (k === "m" || k === "M") { v.muted = !v.muted; tip(v.muted ? "已静音" : "取消静音"); }
     else if (k === "f" || k === "F") { nativeFullscreen(); }
+    else if (k === "p" || k === "P") { if (SCONF.pipHotkey) togglePip(); }
   });
   window.addEventListener("pagehide", function () { try { saveSec(); } catch (e) {} });
   $("pClose").onclick = function () { requestClosePly(); };
@@ -2721,6 +2848,15 @@
 
   function cacheEpisode(ep, meta, resumeRec) {
     if (dlBusy()) { tip("已有缓存任务在进行，请等它完成"); return; }
+    if (!resumeRec && SCONF.wifiOnlyCache) {
+      try {
+        var cn = navigator.connection || {};
+        if (cn.type === "cellular" || cn.effectiveType === "2g" || cn.effectiveType === "3g") {
+          tip("已开启「仅 Wi-Fi 缓存」，当前像是移动数据，已暂停");
+          return;
+        }
+      } catch (e) {}
+    }
     var id = ep.url;
     if (getDL().some(function (x) { return x.u === id && x.done; })) { tip("这一集已经缓存过了"); return; }
     if (!resumeRec && !confirm("缓存这一集到本机？\n\n· 8 路并行下载，速度较快\n· 屏幕会自动保持常亮（iOS 不允许后台下载，切到别的 App 会暂停）\n· 中断后回来点「继续」可断点续传，不用从头下\n· 单集可能占 100~500MB 存储")) return;
@@ -3110,6 +3246,14 @@
   renderHome();
   loadHome(false);
   updateFollowDot();
+  applySettings();
+  if (window.matchMedia) {
+    try {
+      matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () {
+        if (SCONF.theme === "auto") applySettings();
+      });
+    } catch (e) {}
+  }
   $("clearData").onclick = function () {
     if (!confirm("确定清除本机的追剧 / 观看历史 / 解析记录吗？")) return;
     ["m_follow", "m_fav", "m_prog", "m_whist", "m_shist", "m_plist", "m_purl"].forEach(function (k) {
@@ -3124,6 +3268,109 @@
     renderHist();
     renderHome();
     tip("已清空观看历史");
+  };
+
+  /* ---------- 设置面板 ---------- */
+  function settingsSection(title) {
+    var g = document.createElement("div"); g.className = "sg";
+    var h = document.createElement("h4"); h.textContent = title; g.appendChild(h);
+    $("setBody").appendChild(g);
+    return g;
+  }
+  function sItem(box, label, desc) {
+    var r = document.createElement("div"); r.className = "sr";
+    var x = document.createElement("div"); x.className = "sx";
+    var l = document.createElement("div"); l.className = "sl"; l.textContent = label; x.appendChild(l);
+    if (desc) { var d = document.createElement("div"); d.className = "sd"; d.textContent = desc; x.appendChild(d); }
+    r.appendChild(x); box.appendChild(r);
+    return r;
+  }
+  function renderSettings() {
+    var body = $("setBody"); body.innerHTML = "";
+    function optRow(g, label, desc, opts, cur, pick, fmt) {
+      var r = sItem(g, label, desc);
+      var box = document.createElement("div"); box.className = "sopt";
+      opts.forEach(function (o) {
+        var b = document.createElement("button");
+        b.textContent = fmt ? fmt(o) : String(o);
+        b.className = cur === o ? "on" : "";
+        b.onclick = function () { pick(o); saveSCONF(); applySettings(); renderSettings(); };
+        box.appendChild(b);
+      });
+      r.appendChild(box);
+    }
+    function swRow(g, label, desc, key) {
+      var r = sItem(g, label, desc);
+      var b = document.createElement("button");
+      b.className = "sw" + (SCONF[key] ? " on" : "");
+      b.onclick = function () {
+        SCONF[key] = !SCONF[key];
+        b.classList.toggle("on", SCONF[key]);
+        saveSCONF(); applySettings();
+      };
+      r.appendChild(b);
+    }
+    var g1 = settingsSection("播放偏好");
+    optRow(g1, "默认倍速", "每次打开播放器的起始速度", [0.75, 1, 1.25, 1.5, 2], SCONF.speed, function (v) {
+      SCONF.speed = v; spd = v; try { localStorage.setItem("m_spd", String(v)); } catch (e) {} applySpd();
+    }, function (v) { return v + "x"; });
+    optRow(g1, "默认清晰度", "桌面端可切档；iOS 由系统自适应", [0, 2160, 1080, 720, 480], SCONF.prefHeight, function (v) {
+      SCONF.prefHeight = v;
+    }, function (v) { return v === 0 ? "自动" : (v >= 2160 ? "4K" : v + "P"); });
+    swRow(g1, "预加载下一集", "看到 85% 时预取下一集清单（省流量）", "preloadNext");
+    swRow(g1, "切后台自动暂停", "切到其他 App 时暂停播放", "autoPauseOnHide");
+    swRow(g1, "画中画快捷键", "PC 上按 P 切换画中画", "pipHotkey");
+
+    var g2 = settingsSection("隐私");
+    optRow(g2, "播放记录保留", "超期自动清理观看历史与进度", [7, 30, 0], SCONF.historyKeep, function (v) {
+      SCONF.historyKeep = v;
+    }, function (v) { return v === 0 ? "永不" : v + " 天"; });
+    swRow(g2, "个性化推荐", "关闭后只用热门兜底，不读取观看/追剧记录", "personalize");
+
+    var g3 = settingsSection("缓存");
+    swRow(g3, "仅 Wi-Fi 下缓存", "iOS 读不到网络类型，无法判断时仍允许", "wifiOnlyCache");
+
+    var g4 = settingsSection("外观");
+    optRow(g4, "主题", "", ["dark", "light", "auto"], SCONF.theme, function (v) {
+      SCONF.theme = v;
+    }, function (v) { return v === "dark" ? "暗色" : v === "light" ? "亮色" : "跟随系统"; });
+    optRow(g4, "字体大小", "", [1, 1.08, 1.16], SCONF.fontScale, function (v) {
+      SCONF.fontScale = v;
+    }, function (v) { return v === 1 ? "标准" : v < 1.1 ? "大" : "特大"; });
+
+    var g5 = settingsSection("通知");
+    var r5 = sItem(g5, "更新提醒", "iOS 需添加到主屏且系统 16.4 以上");
+    var nb = document.createElement("button");
+    nb.style.cssText = "padding:7px 12px;font-size:12px;border-radius:7px;border:1px solid #2f3540;background:transparent;color:#c9ced6;flex-shrink:0";
+    var perm = "default";
+    try { perm = ("Notification" in window) ? Notification.permission : "unsupported"; } catch (e) { perm = "unsupported"; }
+    nb.textContent = perm === "granted" ? "已开启" : perm === "unsupported" ? "不支持" : perm === "denied" ? "已被拒绝" : "开启";
+    nb.onclick = function () {
+      if (!("Notification" in window)) { tip("当前浏览器不支持通知"); return; }
+      try {
+        Notification.requestPermission().then(function (p) {
+          tip(p === "granted" ? "已开启通知" : "未授予通知权限");
+          renderSettings();
+        }).catch(function () { tip("通知请求失败：iOS 需先添加到主屏（16.4+）"); });
+      } catch (e) { tip("通知请求失败：iOS 需先添加到主屏（16.4+）"); }
+    };
+    r5.appendChild(nb);
+
+    var g6 = settingsSection("关于");
+    var ver = (document.querySelector('meta[name="appver"]') || {}).content || "?";
+    sItem(g6, "版本", "当前 v" + ver + " · 影视库");
+  }
+  function closeSettings() { $("settings").style.display = "none"; unlockScroll(); }
+  function requestCloseSettings() {
+    if (UCONF.historyBack && pushN > 0) { history.back(); return; }
+    closeSettings();
+  }
+  $("setBack").onclick = requestCloseSettings;
+  $("openSettings").onclick = function () {
+    renderSettings();
+    $("settings").style.display = "block";
+    pushOv("settings");
+    lockScroll();
   };
 })();
 </script>
