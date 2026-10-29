@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="81">
+<meta name="appver" content="82">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -453,6 +453,10 @@
   #histBar .hbtn.danger { background: rgba(255,138,138,.14); color: #ff8a8a; }
   body.light #histBar .hbtn { background: #eceef2; color: #4a5058; }
   body.light #histBar .hbtn.danger { background: #fbe4e4; color: #b35c00; }
+  .searchLoading { display: flex; align-items: center; gap: 9px; padding: 26px 6px; color: #8a9099; font-size: 13px; }
+  .sspin { width: 14px; height: 14px; border: 2px solid #3a4048; border-top-color: #ff8f1f; border-radius: 50%;
+    animation: pullspin .8s linear infinite; flex-shrink: 0; }
+  body.light .sspin { border-color: #d8dbe0; border-top-color: #ff8f1f; }
   .frow.sel { outline: 1px solid #ff8f1f; background: #1c2027; }
 
   /* ===== v74：桌面侧栏 / TOP10 / 详情吸顶导航 / 页面淡入 ===== */
@@ -1394,6 +1398,8 @@
     status("home", autoRetried ? "网络不稳，自动重试中…" : (homePool.length ? "正在更新…" : "加载中…"));
     var pages = [1, 2, 3, 4, 5];
     var done = 0, failed = 0, freshPool = [];
+    var oldIds = {};
+    homePool.forEach(function (x) { oldIds[String(x.vod_id)] = 1; });
     pages.forEach(function (pg) {
       api(API + "?ac=videolist&h=24&wd=%20&pg=" + pg).then(function (r) {
         if (gen !== state.homeGen) return;
@@ -1405,7 +1411,13 @@
         if (gen !== state.homeGen) return;
         done++;
         if (done === pages.length) {
-          if (homePool.length && failed < pages.length) { status("home", ""); state.loading = false; savePoolCache("home", homePool); prefetchCat(); }
+          if (homePool.length && failed < pages.length) {
+            status("home", ""); state.loading = false; savePoolCache("home", homePool); prefetchCat();
+            var newIds = 0;
+            freshPool.forEach(function (x) { if (!oldIds[String(x.vod_id)]) newIds++; });
+            if (newIds > 0) tip("已更新，新增 " + newIds + " 部内容");
+            else { status("home", "已是最新"); setTimeout(function () { if (document.getElementById("st-home").textContent === "已是最新") status("home", ""); }, 2500); }
+          }
           else if (!autoRetried) {
             setTimeout(function () {
               if (gen === state.homeGen) loadHome(false, true);
@@ -1861,6 +1873,7 @@
       s.textContent = c.name;
       s.onclick = function () {
         state.catId = c.id; state.catPg = 3;
+        catPool = [];                       // 切栏目必须清池：避免展示上一个栏目的内容
         $("catGrid").innerHTML = ""; $("catMore").innerHTML = "";
         renderCatChips(); loadCat(false);
       };
@@ -1893,6 +1906,8 @@
     var gen = state.catGen;
     catLoading = true;
     var before = catPool.length;
+    var oldIds = {};
+    catPool.forEach(function (x) { oldIds[String(x.vod_id)] = 1; });
     var fromCache = false, freshPool = [];
     if (!more && !catPool.length) {
       var cch = loadPoolCache("cat_" + state.catId + (state.catYear ? "_" + state.catYear : ""));
@@ -1902,7 +1917,7 @@
       var g0 = $("catGrid"); g0.innerHTML = ""; g0.appendChild(skGrid(9));
     }
     status("cat", autoRetried ? "网络不稳，自动重试中…" : (catPool.length ? "正在更新…" : (more ? "加载更多…" : "加载中…")));
-    var pages = autoRetried ? [1] : (more ? [state.catPg] : [1, 2, 3]);
+    var pages = more ? [state.catPg] : [1, 2, 3];   // 重试也拉全量页，避免内容缩水
     var yq = state.catYear ? "&year=" + state.catYear : "";
     var done = 0, failed = 0;
     pages.forEach(function (pg) {
@@ -1919,6 +1934,8 @@
         if (done === pages.length) {
           if (catPool.length && failed < pages.length) {
             savePoolCache("cat_" + state.catId + (state.catYear ? "_" + state.catYear : ""), catPool);
+            var newIds = 0;
+            freshPool.forEach(function (x) { if (!oldIds[String(x.vod_id)]) newIds++; });
             if (more && catPool.length === before) {
               status("cat", "没有更多了 · 共 " + catPool.length + " 部");
               $("catMore").innerHTML = "";
@@ -1926,6 +1943,8 @@
               status("cat", "共 " + catPool.length + " 部");
               renderCatMore();
             }
+            if (newIds > 0) tip("已更新，新增 " + newIds + " 部内容");
+            else if (!more && fromCache) { status("cat", "已是最新 · 共 " + catPool.length + " 部"); setTimeout(function () { if (document.getElementById("st-cat").textContent === "已是最新 · 共 " + catPool.length + " 部") status("cat", "共 " + catPool.length + " 部"); }, 2500); }
             $("st-cat").style.cursor = ""; $("st-cat").onclick = null;
           } else if (catPool.length) {                       // 全部失败但缓存内容在：如实提示，可重试
             renderCatGrid();
@@ -2235,6 +2254,7 @@
       preList = dedupe((sugCache[raw] || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url && !isBlocked(x); }));
       preFromSug = preList.length > 0;
     }
+    var sugWait = (!preList.length && sugInflight[raw]) ? sugInflight[raw] : null;  // 联想请求还在路上：落地即显示
     if (preList.length) {
       preList.sort(function (a, b) { return matchScore(b, raw) - matchScore(a, raw); });
       state.searchPool = preList; state.searchList = preList;
@@ -2247,12 +2267,31 @@
     $("hotSearchChips").style.display = "none"; $("hotSearchChips").innerHTML = "";
     $("shist").innerHTML = ""; $("sugBox").style.display = "none"; $("sugBox").innerHTML = "";
     $("st-search").onclick = null; $("st-search").style.cursor = "";
+    $("searchGrid").innerHTML = "";
     if (preList.length) {
       applySearchView();
       status("search", (preFromSug ? "已显示联想结果" : "本地找到 " + preList.length + " 部") + " · 正在搜索全网…");
     } else {
       $("searchFilters").style.display = "none"; $("searchMore").innerHTML = ""; $("searchSort").style.display = "none";
-      $("searchGrid").appendChild(skGrid(9));
+      var ld = document.createElement("div");
+      ld.className = "searchLoading";
+      ld.innerHTML = '<span class="sspin"></span><span>正在搜索「' + esc(raw) + '」…</span>';
+      $("searchGrid").appendChild(ld);
+      if (sugWait) {                            // 联想结果一落地就先显示，不等全量搜索
+        sugWait.then(function (list) {
+          if (gen !== state.searchGen || !list || !list.length) return;
+          var pre = dedupe(list.filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url && !isBlocked(x); }));
+          if (!pre.length) return;
+          pre.sort(function (a, b) { return matchScore(b, raw) - matchScore(a, raw); });
+          state.searchPool = pre; state.searchList = pre;
+          state.searchQ = raw; state.searchTotal = pre.length;
+          state.searchPageCount = 1; state.searchSort = "rel";
+          state.searchNote = "来自搜索联想";
+          buildSearchFacets(pre);
+          applySearchView();
+          status("search", "已显示联想结果 · 正在搜索全网…");
+        });
+      }
     }
     sugGen++; clearTimeout(sugTimer);
     state.epHint = parseHint(raw);
@@ -2348,7 +2387,7 @@
   $("go").onclick = doSearch;
   $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
   /* ---------- 搜索实时联想:本地池毫秒级直出 + 网络补充(绕队列/自动取消旧请求) ---------- */
-  var sugTimer = null, sugGen = 0, sugCtl = null, sugCache = {};
+  var sugTimer = null, sugGen = 0, sugCtl = null, sugCache = {}, sugInflight = {};
   function sugFallback(kw) {
     var box = $("sugBox");
     box.innerHTML = "";
@@ -2408,25 +2447,30 @@
     var ctl = new AbortController();
     sugCtl = ctl;
     var tm = setTimeout(function () { ctl.abort(); }, 8000);
-    return fetch(API + "?ac=videolist&wd=" + encodeURIComponent(kw), { signal: ctl.signal }).then(function (r) {
+    var p = fetch(API + "?ac=videolist&wd=" + encodeURIComponent(kw), { signal: ctl.signal }).then(function (r) {
       clearTimeout(tm);
-      if (sugCtl !== ctl) return { list: [] };
       return r.json();
     }, function (e) {
       clearTimeout(tm);
-      if (sugCtl !== ctl) return { list: [] };
-      throw e;
+      return { list: [] };
     }).then(function (j) {
-      if (sugCtl !== ctl || gen !== sugGen || state.view !== "search") return;
+      // 无论联想面板是否还显示，结果都入缓存：点「搜索」时可直接复用这次请求
       var list = (j.list || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url && !isBlocked(x); }).slice(0, 8);
       if (list.length) {
-        sugCache[kw] = list;                   // 输入时已拉网，点「搜索」直接复用，免骨架屏
+        sugCache[kw] = list;
         var keys = Object.keys(sugCache);
         if (keys.length > 24) delete sugCache[keys[0]];
-        sugRender(list, kw, false);
       }
+      return list;
+    });
+    sugInflight[kw] = p;
+    p.then(function () { if (sugInflight[kw] === p) delete sugInflight[kw]; });
+    p.then(function (list) {
+      if (sugCtl !== ctl || gen !== sugGen || state.view !== "search") return;
+      if (list.length) sugRender(list, kw, false);
       else if (!sugLocal(kw).length) sugFallback(kw);
-    }).catch(function () {});
+    });
+    return p;
   }
   function sugTick(immediate) {
     var kw = ($("q").value || "").trim();
