@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="64">
+<meta name="appver" content="65">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -303,6 +303,15 @@
     background: rgba(0,0,0,.34); }
   #pTap button { padding: 12px 22px; font-size: 14px; border-radius: 999px; border: none;
     background: #ff8f1f; color: #201004; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  #pErr { position: absolute; inset: 0; z-index: 7; display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 10px; background: rgba(0,0,0,.58); padding: 24px; text-align: center; }
+  #pErr .peh { font-size: 15px; font-weight: 600; color: #fff; }
+  #pErr .pem { font-size: 12px; color: #c9ced6; line-height: 1.7; max-width: 82%; }
+  #pErr .per { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  #pErr button { padding: 10px 16px; font-size: 13px; border-radius: 8px; border: 1px solid #3a4048;
+    background: #1e2228; color: #e8eaee; }
+  #pErr button.go { background: #ff8f1f; border-color: #ff8f1f; color: #201004; font-weight: 600; }
+  #pErr button:disabled { opacity: .4; }
   .spdrow .div { width: 1px; background: #2a2f37; margin: 4px; flex-shrink: 0; }
 
   /* ===== 阶段1-2：播放器面板 / 沉浸全屏 / 手势 HUD ===== */
@@ -560,6 +569,9 @@
     <div class="eplist" id="pEplist" style="display:none"></div>
     <div id="pNext"></div>
     <div id="pTap"><button id="pTapBtn">点此播放</button></div>
+    <div id="pErr"><div class="peh">播放失败</div><div class="pem" id="pErrMsg"></div>
+      <div class="per"><button class="go" id="pErrRetry">重试</button><button id="pErrLine">换线路</button><button id="pErrWeb">网页打开</button></div>
+    </div>
     <div id="pFsExit">✕</div>
     <div id="pHud"></div>
     <div id="pSheet"><div class="pst">播放设置</div><div class="pgrid" id="pSheetGrid"></div></div>
@@ -587,7 +599,11 @@
     gestureSeek: true,             // iOS 左右滑调进度
     gestureSeekStep: 10,           // 每格跳秒数
     gestureSeekPx: 60,             // 每格所需横向像素
-    gestureHintVolume: true        // 上下滑时提示用系统音量键
+    gestureHintVolume: true,       // 上下滑时提示用系统音量键
+    hlsMaxRetries: 2,              // HLS 网络错误重试次数（超过则交给错误面板）
+    hlsRetryBaseMs: 800,           // 重试退避基数（线性递增）
+    netResumeDelayMs: 600,         // 网络恢复后等待再续播
+    mediaSession: true             // 锁屏/控制中心媒体信息
   };
   try {
     var _pc = JSON.parse(localStorage.getItem("m_pconf") || "{}");
@@ -1711,7 +1727,7 @@
   }
 
   /* ---------- 详情 ---------- */
-  var detailRow = null;
+  var detailRow = null, detailGen = 0;
   var EP_PAGE = 60;
   function renderDetailHead(row) {
     $("dPic").src = row.vod_pic || "";
@@ -1751,6 +1767,7 @@
     $("dIntroSec").style.display = intro ? "block" : "none";
   }
   function openDetail(row, jumpEp) {
+    var gen = ++detailGen;       // 每次打开/重开都换令牌，关闭会再 +1 作废在途请求
     detailRow = row;
     state.curRow = row;
     if ($("detail").style.display !== "block") { pushOv("detail"); lockScroll(); }
@@ -1770,11 +1787,13 @@
       $("dEps").innerHTML = '<span class="skw" style="width:100%;height:38px;display:block"></span>';
       // 用户主动点开：请求插队 + 双倍重试；失败可点击重试
       api(API + "?ac=videolist&wd=x&ids=" + row.vod_id, { front: true, retries: 2 }).then(function (j) {
+        if (gen !== detailGen || $("detail").style.display !== "block") return;
         var d = j.list && j.list[0];
         if (!d || !d.vod_play_url) { $("dNote").textContent = "未取到选集（资源可能已下架）"; return; }
         $("dNote").style.cursor = ""; $("dNote").onclick = null;
         openDetail(d, jumpEp);
       }).catch(function (e) {
+        if (gen !== detailGen || $("detail").style.display !== "block") return;
         $("dNote").textContent = "获取失败，点此重试";
         $("dNote").style.cursor = "pointer";
         $("dNote").onclick = function () { openDetail(row, jumpEp); };
@@ -1807,6 +1826,7 @@
     Promise.all(state.lines.map(function (l) {
       return probeRes(l.eps[0].url).then(function (r) { l.resW = r.w || 0; l.resTag = r.tag || ""; });
     })).then(function () {
+      if (gen !== detailGen || $("detail").style.display !== "block") return;
       state.lines.sort(function (a, b) { return (b.resW || 0) - (a.resW || 0); });
       renderDetailLines(); renderDetailEps();
     });
@@ -1901,11 +1921,13 @@
   function renderRelated(row) {
     var sec = $("dRelSec"), box = $("dRel");
     if (!sec || !box) return;
+    var relGen = detailGen, relId = String(row.vod_id);
     sec.style.display = "none"; box.innerHTML = "";
     var pool = dedupe(homePool.concat(catPool)).filter(function (x) {
       return String(x.vod_id) !== String(row.vod_id) && x.vod_pic;
     });
     function paint(list) {
+      if (relGen !== detailGen || !detailRow || String(detailRow.vod_id) !== relId || $("detail").style.display !== "block") return;
       var ranked = list.slice().sort(function (a, b) { return relScore(row, b) - relScore(row, a); }).slice(0, 12);
       if (ranked.length < 3) return;
       sec.style.display = "block";
@@ -1928,7 +1950,8 @@
     if (!t || t.className !== "actorlink") return;
     var nm = t.getAttribute("data-n");
     if (!nm) return;
-    $("detail").style.display = "none";
+    closeDetail();               // 先解锁滚动，再消费掉详情对应的 history 条目
+    if (UCONF.historyBack && pushN > 0) { try { history.back(); } catch (err) {} }
     switchView("search");
     $("q").value = nm;
     doSearch();
@@ -1982,7 +2005,10 @@
     $("pFrame").src = "about:blank";
     var v = $("pVideo");
     try { v.pause(); } catch (e) {}
+    delete v.dataset.u;          // 必须清掉挂源标记，否则重开同一集会跳过 attachSource
     v.removeAttribute("src"); v.load();
+    hidePlyErr();
+    clearMediaSession();
     unlockScroll();
     renderHome();
   }
@@ -1991,6 +2017,7 @@
     closePly(false);
   }
   function closeDetail() {
+    detailGen++;                 // 作废所有在途的详情/相关推荐回调
     $("detail").style.display = "none";
     $("dIntro").classList.remove("open");
     unlockScroll();
@@ -2011,6 +2038,7 @@
     state.epIdx = i;
     state.epPage = Math.floor(i / EP_PAGE);
     hideNext();
+    hidePlyErr();
     var ep = state.eps[i];
     if (state.curRow) {
       var prog = getProg();
@@ -2036,6 +2064,7 @@
     if (!directMode) $("pFrame").src = PLAYER + encodeURIComponent(ep.url);
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || ("第" + (i + 1) + "集"));
     renderPEplist();
+    setMediaSession();
     if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
     applyPlayer();
   }
@@ -2088,7 +2117,7 @@
   try { if (localStorage.getItem("m_pmode") === "cloud") directMode = false; } catch (e) {}
 
   /* ---------- 播放引擎：iOS/Safari 原生 HLS 优先，桌面回退 hls.js ---------- */
-  var hlsInst = null, hlsLoading = null, qualLevels = [], qualCur = -1, srcGen = 0;
+  var hlsInst = null, hlsLoading = null, qualLevels = [], qualCur = -1, srcGen = 0, hlsRetry = 0;
   function isIOS() {
     // iPadOS 13+ 伪装成 Mac（带触摸点），需单独识别
     return /iP(hone|od|ad)/.test(navigator.userAgent) ||
@@ -2122,6 +2151,7 @@
   function attachSource(u) {
     var v = $("pVideo");
     var g = ++srcGen;                 // 代际令牌：快速切集时丢弃过期挂载
+    hlsRetry = 0;
     destroyEngine();
     if (canNativeHls()) { v.src = u; return Promise.resolve("native"); }
     return loadHlsjs().then(function (H) {
@@ -2148,12 +2178,61 @@
         if ($("pSpeed") && $("pSpeed").style.display === "flex") renderSpd();
       });
       hlsInst.on(H.Events.ERROR, function (e, d) {
-        if (d && d.fatal && d.type === H.ErrorTypes.NETWORK_ERROR) hlsInst.startLoad();
+        if (!d || !d.fatal) return;
+        if (d.type === H.ErrorTypes.NETWORK_ERROR && hlsRetry < PCONF.hlsMaxRetries) {
+          hlsRetry++;
+          setTimeout(function () {
+            if (hlsInst) { try { hlsInst.startLoad(); } catch (err) {} }
+          }, PCONF.hlsRetryBaseMs * hlsRetry);
+          return;
+        }
+        if (d.type === H.ErrorTypes.MEDIA_ERROR) {
+          try { hlsInst.recoverMediaError(); } catch (err) {}
+        }
+        showPlyErr(d.type === H.ErrorTypes.NETWORK_ERROR
+          ? "网络错误：片源连接失败或防盗链拦截。可重试、换线路或网页打开。"
+          : "播放失败：片源编码/解码异常。可换线路或网页打开。");
       });
       hlsInst.loadSource(u);
       hlsInst.attachMedia(v);
       return "hlsjs";
-    }).catch(function () { v.src = u; return "native"; });
+    }).catch(function () {
+      if (!canNativeHls()) { showPlyErr("播放组件加载失败，请检查网络后重试"); return "error"; }
+      v.src = u; return "native";
+    });
+  }
+  function showPlyErr(msg) {
+    if (!$("pErr")) return;
+    $("pErrMsg").textContent = msg || "播放失败，可能是片源失效或防盗链";
+    $("pErrLine").disabled = !(window.plyMode === "ep" && state.lines.length > 1);
+    $("pErrWeb").style.display = window.plyMode === "ep" ? "" : "none";
+    $("pErr").style.display = "flex";
+    hideTap();
+  }
+  function hidePlyErr() { var e = $("pErr"); if (e) e.style.display = "none"; }
+  function retryCurrent() {
+    hidePlyErr();
+    if (window.plyMode !== "ep" || !state.eps[state.epIdx]) { tip("请重新选择线路"); return; }
+    var v = $("pVideo");
+    try { v.pause(); } catch (e) {}
+    delete v.dataset.u;
+    v.removeAttribute("src"); v.load();
+    destroyEngine();
+    applyPlayer();
+  }
+  function switchNextLine() {
+    if (window.plyMode !== "ep" || state.lines.length < 2) { tip("没有其他线路"); return; }
+    var keepEp = state.epIdx;
+    state.lineIdx = (state.lineIdx + 1) % state.lines.length;
+    state.eps = state.lines[state.lineIdx].eps;
+    state.epIdx = Math.min(Math.max(keepEp, 0), state.eps.length - 1);
+    state.resumeSec = 0;             // 换线路后从该集开头，避免旧线路秒数不匹配
+    hidePlyErr();
+    renderDetailLines(); renderDetailEps(); renderPEplist();
+    setMediaSession();
+    $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (state.eps[state.epIdx].name || ("第" + (state.epIdx + 1) + "集"));
+    applyPlayer();
+    tip("已换到线路：" + state.lines[state.lineIdx].name);
   }
   function showTap() { var t = $("pTap"); if (t) t.style.display = "flex"; }
   function hideTap() { var t = $("pTap"); if (t) t.style.display = "none"; }
@@ -2163,12 +2242,77 @@
     if (p && p.catch) p.catch(function (err) {
       // iOS 自动播放策略：非手势触发的 play() 被拒 → 就地给可点击兜底
       if (err && err.name === "NotAllowedError" && PCONF.autoplayTapFallback) showTap();
+      else if (err && err.name === "NotSupportedError") showPlyErr("当前浏览器无法播放该片源，可换线路或用「网页打开」");
+      else if (err) tip("播放失败：" + (err.message || "未知错误"));
     });
   }
   $("pTapBtn").onclick = function () {
     hideTap();
     try { $("pVideo").play().catch(function () {}); } catch (e) {}
   };
+  $("pErrRetry").onclick = retryCurrent;
+  $("pErrLine").onclick = switchNextLine;
+  $("pErrWeb").onclick = function () { hidePlyErr(); $("pWeb").click(); };
+
+  /* ---------- 锁屏 / 控制中心（Media Session） ---------- */
+  var msBound = false;
+  function bindMediaSession() {
+    if (!("mediaSession" in navigator) || msBound) return;
+    msBound = true;
+    var ms = navigator.mediaSession;
+    function seek(delta) {
+      var v = $("pVideo");
+      if (!v) return;
+      try { v.currentTime = Math.max(0, Math.min(v.duration || 1e9, v.currentTime + delta)); } catch (e) {}
+    }
+    var acts = {
+      play: function () { if (window.plyMode === "ep" && directMode) safePlay(); },
+      pause: function () { if (window.plyMode === "ep") { try { $("pVideo").pause(); } catch (e) {} } },
+      seekbackward: function (d) { if (window.plyMode === "ep") seek(-((d && d.seekOffset) || 10)); },
+      seekforward: function (d) { if (window.plyMode === "ep") seek((d && d.seekOffset) || 10); },
+      seekto: function (d) {
+        if (window.plyMode !== "ep" || !d || typeof d.seekTime !== "number") return;
+        try { $("pVideo").currentTime = d.seekTime; } catch (e) {}
+      },
+      previoustrack: function () {
+        if (window.plyMode === "ep" && state.epIdx > 0) { playEp(state.epIdx - 1); renderDetailEps(); }
+      },
+      nexttrack: function () {
+        if (window.plyMode === "ep" && state.epIdx + 1 < state.eps.length) { playEp(state.epIdx + 1); renderDetailEps(); }
+      }
+    };
+    Object.keys(acts).forEach(function (k) { try { ms.setActionHandler(k, acts[k]); } catch (e) {} });
+  }
+  function setMediaSession() {
+    if (!PCONF.mediaSession || !("mediaSession" in navigator) || !window.MediaMetadata) return;
+    try {
+      bindMediaSession();
+      var ep = state.eps[state.epIdx] || {}, row = state.curRow || {};
+      var art = row.vod_pic ? [{ src: row.vod_pic, sizes: "512x512", type: "image/jpeg" }] : [];
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: (row.vod_name || "影视库") + (ep.name ? " · " + ep.name : ""),
+        artist: row.type_name || "影视库",
+        album: "影视库",
+        artwork: art
+      });
+    } catch (e) {}
+  }
+  function clearMediaSession() {
+    if (!("mediaSession" in navigator)) return;
+    try { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = "none"; } catch (e) {}
+  }
+  function syncPositionState() {
+    if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;
+    var v = $("pVideo");
+    if (!v || !isFinite(v.duration) || v.duration <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: v.duration,
+        playbackRate: v.playbackRate || 1,
+        position: Math.min(Math.max(0, v.currentTime || 0), v.duration)
+      });
+    } catch (e) {}
+  }
 
   /* ---------- 画面比例（智能默认：横屏铺满、竖屏完整） ---------- */
   var FIT_MODES = [["auto", "智能"], ["contain", "适应"], ["cover", "铺满"], ["fill", "拉伸"]];
@@ -2223,9 +2367,10 @@
     var v = $("pVideo"), f = $("pFrame");
     applyFit();
     if (directMode) {
-      if (v.dataset.u !== ep.url) {
+      if (v.dataset.u !== ep.url || !v.getAttribute("src")) {
         v.dataset.u = ep.url;
         hideTap();
+        hidePlyErr();
         var rs = state.resumeSec || 0;
         if (rs > 3) {
           var seeked = false;
@@ -2239,12 +2384,17 @@
           v.addEventListener("loadedmetadata", trySeek);
           setTimeout(trySeek, 2500);
         }
-        attachSource(ep.url).then(function (m) { if (m !== "stale") { safePlay(); applySpd(); } });
+        attachSource(ep.url).then(function (m) {
+          if (m === "hlsjs" || m === "native") { safePlay(); applySpd(); }
+        });
       }
       f.style.display = "none"; v.style.display = "block";
     } else {
       destroyEngine();
+      hidePlyErr();
       try { v.pause(); } catch (e) {}
+      delete v.dataset.u;          // 云播放期间释放直连源，切回直连时必须重新挂源
+      v.removeAttribute("src"); v.load();
       v.style.display = "none"; f.style.display = "block";
     }
   }
@@ -2330,6 +2480,18 @@
   function hideNextSafe() { try { hideNext(); } catch (e) {} }
 
   var pv = $("pVideo");
+  pv.addEventListener("error", function () {
+    if (window.plyMode !== "ep" || $("ply").style.display !== "flex") return;
+    var ep = state.eps[state.epIdx];
+    if (!ep || pv.dataset.u !== ep.url || !pv.getAttribute("src")) return;
+    showPlyErr("播放失败：片源可能失效、防盗链或编码不支持。可重试、换线路或网页打开。");
+  });
+  pv.addEventListener("play", function () {
+    try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; } catch (e) {}
+  });
+  pv.addEventListener("pause", function () {
+    try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } catch (e) {}
+  });
   pv.addEventListener("ended", function () {
     if (window.plyMode !== "ep" || !state.curRow || !autoNext) return;
     if (state.epIdx + 1 >= state.eps.length) { tip("已是最后一集"); return; }
@@ -2352,6 +2514,7 @@
   pv.addEventListener("timeupdate", function () {
     if (!state.curRow || !pv.currentTime || pv.paused) return;
     maybePreloadNext();
+    syncPositionState();
     var now = Date.now();
     if (pv._ls && now - pv._ls < PCONF.progressSaveSec * 1000) return;
     pv._ls = now;
@@ -2546,7 +2709,29 @@
     else if (k === "f" || k === "F") { nativeFullscreen(); }
     else if (k === "p" || k === "P") { if (SCONF.pipHotkey) togglePip(); }
   });
-  window.addEventListener("pagehide", function () { try { saveSec(); } catch (e) {} });
+  window.addEventListener("pagehide", function (e) {
+    try { saveSec(); } catch (err) {}
+    // 真正卸载（非 bfcache）时释放播放内核；切后台仍由 visibilitychange 处理，不销毁
+    if (!e || !e.persisted) { try { destroyEngine(); } catch (err) {} }
+  });
+  var netResumeTimer = null;
+  function onNetworkOnline() {
+    tip("网络已恢复");
+    clearTimeout(netResumeTimer);
+    netResumeTimer = setTimeout(function () {
+      if ($("ply").style.display !== "flex" || window.plyMode !== "ep" || !directMode) return;
+      var v = $("pVideo");
+      if (!v) return;
+      if (!v.paused && v.readyState >= 3) return;
+      try { if (hlsInst) hlsInst.startLoad(); } catch (e) {}
+      if (v.paused) safePlay();
+    }, PCONF.netResumeDelayMs);
+  }
+  window.addEventListener("online", onNetworkOnline);
+  window.addEventListener("offline", function () { tip("网络已断开，恢复后自动续播"); });
+  if (navigator.connection && navigator.connection.addEventListener) {
+    navigator.connection.addEventListener("change", function () { if (navigator.onLine) onNetworkOnline(); });
+  }
   $("pClose").onclick = function () { requestClosePly(); };
   $("pEps").onclick = function () {
     if (window.plyMode === "parse") { tip("解析线路自带选集，请在播放器内操作"); return; }
@@ -2684,6 +2869,8 @@
     window.plyYouku = /youku\.com/i.test((u.split("?")[0] || ""));
     var v = $("pVideo");
     hideTap();
+    hidePlyErr();
+    clearMediaSession();
     destroyEngine();
     closeSheet();
     $("ply").classList.remove("fs");
@@ -3059,6 +3246,8 @@
     window.plyParseU = d.m3u8;
     destroyEngine();
     hideTap();
+    hidePlyErr();
+    clearMediaSession();
     closeSheet();
     $("ply").classList.remove("fs");
     try { $("pVideo").pause(); } catch (e) {}
@@ -3381,6 +3570,5 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
-</body>
 </body>
 </html>
