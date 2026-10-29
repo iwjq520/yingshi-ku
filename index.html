@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="80">
+<meta name="appver" content="81">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -444,9 +444,15 @@
   .fchips .chips { flex: 1; min-width: 0; padding: 0; }
   .fchips .chip { padding: 5px 10px; font-size: 12px; min-height: 30px; }
   body.light .fchips .fl { color: #8a9099; }
-  .histBar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
-  .histBar .chip { padding: 5px 10px; font-size: 12px; min-height: 32px; }
-  .histBar .hbtn { margin-left: auto; padding: 5px 10px; font-size: 12px; border: 1px solid #2f3540; border-radius: 7px; background: transparent; color: #c9ced6; }
+  #histBar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  #histBar .chip { padding: 5px 10px; font-size: 12px; min-height: 32px; }
+  #histBar .hbtn { margin-left: 0; padding: 6px 12px; font-size: 12px; border: none; border-radius: 999px;
+    background: #1a1d23; color: #9aa0a8; cursor: pointer; min-height: 32px;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  #histBar .hbtn:first-of-type { margin-left: auto; }   /* 按钮组靠右，与筛选 chips 同行 */
+  #histBar .hbtn.danger { background: rgba(255,138,138,.14); color: #ff8a8a; }
+  body.light #histBar .hbtn { background: #eceef2; color: #4a5058; }
+  body.light #histBar .hbtn.danger { background: #fbe4e4; color: #b35c00; }
   .frow.sel { outline: 1px solid #ff8f1f; background: #1c2027; }
 
   /* ===== v74：桌面侧栏 / TOP10 / 详情吸顶导航 / 页面淡入 ===== */
@@ -3854,7 +3860,7 @@
       };
       bar.appendChild(ab);
       var db = document.createElement("button");
-      db.className = "hbtn"; db.textContent = "删除选中(" + Object.keys(state.histSel).length + ")";
+      db.className = "hbtn danger"; db.textContent = "删除选中(" + Object.keys(state.histSel).length + ")";
       db.onclick = function () {
         var sel = state.histSel, n = Object.keys(sel).length;
         if (!n) { tip("先选择要删除的记录"); return; }
