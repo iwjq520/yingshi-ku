@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114">
-<meta name="appver" content="52">
+<meta name="appver" content="53">
 <title>影视库</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -275,6 +275,10 @@
         <div style="font-size:11px;color:#565c66;margin-top:8px;line-height:1.7">
           要复制的链接 = 平台里<b style="color:#ff8f1f">那一集播放页</b>的网址（地址栏形如 v.qq.com/x/cover/… · iqiyi.com/v_… · youku.com/v_show/… · mgtv.com/b/…）。搜索页/首页的网址没用。
         </div>
+      </div>
+      <div class="mineCard" id="plistCard" style="display:none">
+        <div class="mt">我的解析 <small>点击直接打开 · 官方源画质</small> <button class="mtbtn" id="pListClear">清空</button></div>
+        <div id="plistBox"></div>
       </div>
     </section>
 
@@ -1526,6 +1530,7 @@
     $("pgo").onclick = function () {
       var u = getPU(true);
       if (!u) return;
+      addPRecord(u, $("purl").value || "");
       openParse(PSOURCES[0], u);
     };
     $("pclr").onclick = function () {
@@ -1534,6 +1539,58 @@
       $("purl").focus();
     };
   })();
+  /* ---------- 我的解析（解析记录，自动记账可一键重开） ---------- */
+  function getPList() { try { return JSON.parse(localStorage.getItem("m_plist") || "[]"); } catch (e) { return []; } }
+  function setPList(l) { try { localStorage.setItem("m_plist", JSON.stringify(l)); } catch (e) {} }
+  function platOf(u) {
+    if (/qq\.com/i.test(u)) return "腾讯视频";
+    if (/iqiyi|qy\.net/i.test(u)) return "爱奇艺";
+    if (/youku/i.test(u)) return "优酷";
+    if (/mgtv/i.test(u)) return "芒果TV";
+    if (/b23|bilibili/i.test(u)) return "B站";
+    return "官方源";
+  }
+  function addPRecord(u, raw) {
+    try {
+      var t = "";
+      if (raw) {
+        t = raw.replace(/https?:\/\/[^\s"'<>「」【】（）()]+/i, "").replace(/[【】「」]/g, "").replace(/\s+/g, " ").trim();
+        if (t.length > 42) t = t.slice(0, 42);
+      }
+      if (!t) t = platOf(u) + " · 官方源";
+      var list = getPList().filter(function (x) { return x.u !== u; });
+      list.unshift({ u: u, t: t, ts: Date.now() });
+      setPList(list.slice(0, 30));
+      renderPList();
+    } catch (e) {}
+  }
+  function renderPList() {
+    var list = getPList();
+    var card = document.getElementById("plistCard");
+    var box = document.getElementById("plistBox");
+    if (!card || !box) return;
+    card.style.display = list.length ? "block" : "none";
+    box.innerHTML = "";
+    list.forEach(function (p) {
+      var d = document.createElement("div");
+      d.className = "frow";
+      d.innerHTML = '<img alt="" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 64 64\'%3E%3Crect width=\'64\' height=\'64\' rx=\'14\' fill=\'%2317191d\'/%3E%3Cpath d=\'M25 19 L47 32 L25 45 Z\' fill=\'%23ff8f1f\'/%3E%3C/svg%3E"><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
+      d.querySelector(".fn").textContent = p.t;
+      var dt = new Date(p.ts);
+      d.querySelector(".fm").textContent = platOf(p.u) + " · " + (dt.getMonth() + 1) + "/" + dt.getDate() + " " + ("0" + dt.getHours()).slice(-2) + ":" + ("0" + dt.getMinutes()).slice(-2);
+      d.querySelector(".fmain").onclick = function () {
+        openParse(PSOURCES[0], p.u);
+      };
+      d.querySelector(".fx").onclick = function (ev) {
+        ev.stopPropagation();
+        setPList(getPList().filter(function (x) { return x.u !== p.u; }));
+        renderPList();
+      };
+      box.appendChild(d);
+    });
+  }
+  $("pListClear").onclick = function () { setPList([]); renderPList(); };
+  renderPList();
   var PLAY = [
     { re: /(m\.)?v\.qq\.com\/x\/(cover|page|m\/play)/i, name: "腾讯视频" },
     { re: /(m\.)?iqiyi\.com\/[vw]_/i, name: "爱奇艺" },
@@ -1691,11 +1748,11 @@
   renderHome();
   loadHome(false);
   $("clearData").onclick = function () {
-    if (!confirm("确定清除本机的追剧 / 观看历史吗？")) return;
-    ["m_follow", "m_fav", "m_prog", "m_whist", "m_shist"].forEach(function (k) {
+    if (!confirm("确定清除本机的追剧 / 观看历史 / 解析记录吗？")) return;
+    ["m_follow", "m_fav", "m_prog", "m_whist", "m_shist", "m_plist", "m_purl"].forEach(function (k) {
       try { localStorage.removeItem(k); } catch (e) {}
     });
-    renderHome(); renderFollow(); renderHist();
+    renderHome(); renderFollow(); renderHist(); renderPList();
     tip("已清除");
   };
   $("clearHist").onclick = function () {
