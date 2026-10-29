@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="79">
+<meta name="appver" content="80">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -494,19 +494,18 @@
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   body.light .t10 .tn { color: #d0d4da; }
   body.light .t10 .pn { color: #171a20; }
-  #dNav { position: sticky; top: -1px; z-index: 7; display: flex; gap: 6px; overflow-x: auto;
-    padding: 8px 0 14px; margin-bottom: 4px;
-    background: linear-gradient(180deg, rgba(15,17,20,.94) 0%, rgba(15,17,20,.78) 62%, rgba(15,17,20,0) 100%);
-    -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1); }
+  #dNav { position: sticky; top: 0; z-index: 7; display: flex; gap: 6px; overflow-x: auto;
+    padding: 6px 0 10px; margin-bottom: 2px; background: transparent;
+    transition: transform .22s ease, opacity .22s ease; }
+  #dNav.hide { transform: translateY(-130%); opacity: 0; pointer-events: none; }
   #dNav::-webkit-scrollbar { display: none; }
   #dNav button { flex-shrink: 0; padding: 6px 12px; font-size: 12px; border-radius: 999px;
-    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: #9aa0a8;
+    border: 1px solid rgba(255,255,255,.14); background: rgba(15,17,20,.28); color: #e8eaee;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: pointer; }
-  #dNav button.on { border-color: rgba(255,143,31,.8); color: #ff9d45; background: rgba(255,143,31,.14); }
-  body.light #dNav {
-    background: linear-gradient(180deg, rgba(245,246,248,.95) 0%, rgba(245,246,248,.8) 62%, rgba(245,246,248,0) 100%); }
-  body.light #dNav button { border-color: rgba(0,0,0,.08); background: rgba(255,255,255,.62); color: #5a6069; }
-  body.light #dNav button.on { border-color: #ff8f1f; color: #b35c00; background: rgba(255,143,31,.12); }
+  #dNav button.on { border-color: #ff8f1f; color: #ff9d45; background: rgba(255,143,31,.2); }
+  body.light #dNav button { border-color: rgba(0,0,0,.07); background: rgba(255,255,255,.42); color: #4a5058; }
+  body.light #dNav button.on { border-color: #ff8f1f; color: #b35c00; background: rgba(255,143,31,.16); }
   @keyframes viewIn { from { opacity: .35; transform: translateY(5px); } to { opacity: 1; transform: none; } }
   .view.on { animation: viewIn .18s ease; }
   @media (prefers-reduced-motion: reduce) { .view.on { animation: none; } }
@@ -2606,6 +2605,8 @@
       try { history.replaceState({ ov: "detail", id: String(row.vod_id) }, "", "?id=" + encodeURIComponent(row.vod_id)); } catch (e) {}
     }
     renderDetailHead(row);
+    var navEl = $("dNav");
+    if (navEl) navEl.classList.remove("hide");   // 每次打开详情导航先可见
     var followed0 = getFollow().some(function (f) { return String(f.id) === String(row.vod_id); });
     $("dFollow").textContent = followed0 ? "已追" : "追剧";
     $("dFollow").className = followed0 ? "star on" : "star";
@@ -2898,13 +2899,22 @@
         }
       }, 60);
     });
-    var navTicking = false;
+    var navTicking = false, navLastY = 0;
     $("detail").addEventListener("scroll", function () {
       if (navTicking) return;
       navTicking = true;
       requestAnimationFrame(function () {
         navTicking = false;
-        if (Date.now() < navLock) return;  // 点击后的程序滚动不抢高亮
+        var d = $("detail"), y = d.scrollTop;
+        if (Date.now() < navLock) {           // 点击跳转期间保持可见
+          nav.classList.remove("hide");
+        } else {
+          // 下滑阅读时收起（不遮挡内容），上滑回看时唤出
+          if (y > navLastY + 6 && y > 90) nav.classList.add("hide");
+          else if (y < navLastY - 6 || y <= 90) nav.classList.remove("hide");
+        }
+        navLastY = y;
+        if (Date.now() < navLock) return;     // 点击后的程序滚动不抢高亮
         setNavActive(navBestId());
       });
     }, { passive: true });
