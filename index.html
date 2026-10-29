@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="78">
+<meta name="appver" content="79">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -805,6 +805,7 @@
     preloadNextPct: 0.85,          // 观看到 85% 时预取下一集清单（只取 m3u8 文本，不建流）
     preloadNext: true,             // 预加载下一集开关
     progressSaveSec: 4,            // 进度落盘防抖间隔
+    apiTimeoutMs: 10000,           // 接口超时：失败更快反馈并自动重试
     skipIntroSec: 0,               // 跳过片头秒数（0=关闭，设置面板可调）
     autoplayTapFallback: true,     // 自动播放被策略拦截时就地提示"点此播放"
     hlsCdns: [                     // 桌面端 HLS 回退库（按顺序尝试，国内 CDN 优先）
@@ -992,7 +993,7 @@
     }
     var retries = (opts && opts.retries != null) ? opts.retries : 1;
     var ctl = new AbortController();
-    var tm = setTimeout(function () { ctl.abort(); }, 15000);
+    var tm = setTimeout(function () { ctl.abort(); }, PCONF.apiTimeoutMs || 15000);
     return fetch(u, { signal: ctl.signal }).then(function (r) {
       clearTimeout(tm); return r.json();
     }, function (e) {
@@ -1090,6 +1091,51 @@
   function setWH(a) { setJ("m_whist", a); }
   function getBlock() { return getJ("m_block", "[]"); }
   function setBlock(a) { setJ("m_block", a); }
+  /* ---------- 片池缓存：冷启动秒开（上次内容先渲染，后台刷新替换） ---------- */
+  var POOL_CACHE_VER = 3;
+  function trimRows(rows, cap) {
+    var out = [];
+    (rows || []).slice(0, cap).forEach(function (r) {
+      out.push({ id: r.vod_id, n: r.vod_name, p: r.vod_pic, t: r.type_name, y: r.vod_year, rm: r.vod_remarks,
+        cl: r.vod_class, ar: r.vod_area, lg: r.vod_lang, tm: r.vod_time,
+        hd: r.vod_hits_day, hw: r.vod_hits_week, hm: r.vod_hits_month, ha: r.vod_hits,
+        db: r.vod_douban_score, vn: r.vod_score_num, va: r.vod_score_all, ie: r.vod_isend,
+        pd: r.vod_pubdate, du: r.vod_duration, ti: r.type_id,
+        ac: String(r.vod_actor || "").split(/[,，/]/).slice(0, 3).join(","),
+        dr: String(r.vod_director || "").split(/[,，/]/)[0] || "" });
+    });
+    return out;
+  }
+  function expandRows(list) {
+    return (list || []).map(function (r) {
+      return { vod_id: r.id, vod_name: r.n, vod_pic: r.p, type_name: r.t, vod_year: r.y, vod_remarks: r.rm,
+        vod_class: r.cl, vod_area: r.ar, vod_lang: r.lg, vod_time: r.tm,
+        vod_hits_day: r.hd, vod_hits_week: r.hw, vod_hits_month: r.hm, vod_hits: r.ha,
+        vod_douban_score: r.db, vod_score_num: r.vn, vod_score_all: r.va, vod_isend: r.ie,
+        vod_pubdate: r.pd, vod_duration: r.du, type_id: r.ti, vod_actor: r.ac, vod_director: r.dr };
+    }).filter(function (r) { return r.vod_id && r.vod_name; });
+  }
+  function savePoolCache(key, rows) {
+    try {
+      var all = getJ("m_poolcache", "{}");
+      if (all.v !== POOL_CACHE_VER) all = { v: POOL_CACHE_VER };
+      all[key] = { t: Date.now(), rows: trimRows(rows, 160) };
+      var keys = Object.keys(all).filter(function (k) { return k !== "v"; });
+      if (keys.length > 14) {
+        keys.sort(function (a, b) { return (all[a].t || 0) - (all[b].t || 0); });
+        keys.slice(0, keys.length - 14).forEach(function (k) { delete all[k]; });
+      }
+      setJ("m_poolcache", all);
+    } catch (e) {}
+  }
+  function loadPoolCache(key) {
+    try {
+      var all = getJ("m_poolcache", "{}");
+      if (all.v !== POOL_CACHE_VER || !all[key]) return null;
+      var rows = expandRows(all[key].rows);
+      return rows.length ? rows : null;
+    } catch (e) { return null; }
+  }
   function isBlocked(row) {
     var list = getBlock();
     for (var i = 0; i < list.length; i++) {
@@ -1340,38 +1386,50 @@
     state.homeGen = (state.homeGen || 0) + 1;
     var gen = state.homeGen;
     state.loading = true;
-    status("home", autoRetried ? "网络不稳，自动重试中…" : "加载中…");
+    status("home", autoRetried ? "网络不稳，自动重试中…" : (homePool.length ? "正在更新…" : "加载中…"));
     var pages = [1, 2, 3, 4, 5];
-    var done = 0;
+    var done = 0, failed = 0, freshPool = [];
     pages.forEach(function (pg) {
       api(API + "?ac=videolist&h=24&wd=%20&pg=" + pg).then(function (r) {
         if (gen !== state.homeGen) return;
         var fresh = [];
         (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) fresh.push(x); });
-        homePool = mergeBySort(homePool, fresh);
-        scheduleHomeRender();
-      }).catch(function () {}).then(function () {
+        freshPool = mergeBySort(freshPool, fresh);
+        if (freshPool.length) { homePool = freshPool; scheduleHomeRender(); }  // 整体替换，避免旧缓存残留
+      }).catch(function () { failed++; }).then(function () {
         if (gen !== state.homeGen) return;
         done++;
         if (done === pages.length) {
-          if (homePool.length) { status("home", ""); state.loading = false; prefetchCat(); }
+          if (homePool.length && failed < pages.length) { status("home", ""); state.loading = false; savePoolCache("home", homePool); prefetchCat(); }
           else if (!autoRetried) {
             setTimeout(function () {
               if (gen === state.homeGen) loadHome(false, true);
               else state.loading = false;
             }, 1200);
-          } else { status("home", "加载失败，下拉刷新重试"); state.loading = false; }
+          } else {
+            var cch = loadPoolCache("home");
+            if (cch) { homePool = cch; renderHome(); status("home", "更新失败 · 显示缓存内容，下拉刷新重试"); }
+            else status("home", "加载失败，下拉刷新重试");
+            state.loading = false;
+          }
         }
       });
     });
   }
   function prefetchCat() {
-    // 首页加载完成后，后台预取当前默认栏目前2页 → 用户点「分类」缓存命中秒开
+    // 首页加载完成后，后台预取当前默认栏目前2页 → 用户点「分类」缓存命中秒开；顺便落片池缓存
     var gen = state.catGen;
     var yq = state.catYear ? "&year=" + state.catYear : "";
+    var acc = [], pending = 2;
+    function settle() {
+      if (pending === 0 && acc.length) savePoolCache("cat_" + state.catId + (state.catYear ? "_" + state.catYear : ""), dedupe(acc));
+    }
     [1, 2].forEach(function (pg, i) {
       setTimeout(function () {
-        if (gen === state.catGen) api(API + "?ac=videolist&t=" + state.catId + "&wd=%20" + yq + "&pg=" + pg).catch(function () {});
+        if (gen !== state.catGen) { pending--; settle(); return; }
+        api(API + "?ac=videolist&t=" + state.catId + "&wd=%20" + yq + "&pg=" + pg).then(function (r) {
+          (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) acc.push(x); });
+        }).catch(function () {}).then(function () { pending--; settle(); });
       }, i * 400);
     });
   }
@@ -1830,10 +1888,15 @@
     var gen = state.catGen;
     catLoading = true;
     var before = catPool.length;
+    var fromCache = false, freshPool = [];
+    if (!more && !catPool.length) {
+      var cch = loadPoolCache("cat_" + state.catId + (state.catYear ? "_" + state.catYear : ""));
+      if (cch) { catPool = cch; fromCache = true; renderCatGrid(); }   // 上次内容先渲染
+    }
     if (!catPool.length && !more) {
       var g0 = $("catGrid"); g0.innerHTML = ""; g0.appendChild(skGrid(9));
     }
-    status("cat", autoRetried ? "网络不稳，自动重试中…" : (more ? "加载更多…" : "加载中…"));
+    status("cat", autoRetried ? "网络不稳，自动重试中…" : (catPool.length ? "正在更新…" : (more ? "加载更多…" : "加载中…")));
     var pages = autoRetried ? [1] : (more ? [state.catPg] : [1, 2, 3]);
     var yq = state.catYear ? "&year=" + state.catYear : "";
     var done = 0, failed = 0;
@@ -1842,13 +1905,15 @@
         if (gen !== state.catGen) return;
         var fresh = [];
         (r.list || []).forEach(function (x) { if (x.vod_pic && x.vod_name) fresh.push(x); });
-        catPool = mergeBySort(catPool, fresh);
+        if (more) catPool = mergeBySort(catPool, fresh);
+        else { freshPool = mergeBySort(freshPool, fresh); if (freshPool.length) catPool = freshPool; }  // 替换缓存，避免残留
         renderCatGrid();
       }).catch(function () { failed++; }).then(function () {
         if (gen !== state.catGen) return;
         done++;
         if (done === pages.length) {
-          if (catPool.length) {
+          if (catPool.length && failed < pages.length) {
+            savePoolCache("cat_" + state.catId + (state.catYear ? "_" + state.catYear : ""), catPool);
             if (more && catPool.length === before) {
               status("cat", "没有更多了 · 共 " + catPool.length + " 部");
               $("catMore").innerHTML = "";
@@ -1857,6 +1922,11 @@
               renderCatMore();
             }
             $("st-cat").style.cursor = ""; $("st-cat").onclick = null;
+          } else if (catPool.length) {                       // 全部失败但缓存内容在：如实提示，可重试
+            renderCatGrid();
+            status("cat", "更新失败 · 显示缓存内容，点此重试");
+            $("st-cat").style.cursor = "pointer";
+            $("st-cat").onclick = function () { loadCat(false); };
           } else if (failed >= pages.length && !autoRetried) {
             status("cat", "网络不稳，自动重试中…");
             setTimeout(function () {
@@ -4485,8 +4555,8 @@
     pullTxt.textContent = "刷新中…";
     pullEl.style.transform = "translate(-50%, 0)";
     try {
-      if (state.view === "home") { homePool = []; renderHome(); loadHome(false); }
-      else if (state.view === "cat") { catPool = []; $("catGrid").innerHTML = ""; loadCat(false); }
+      if (state.view === "home") { loadHome(false); }   // 旧内容保持可见，loadHome 整体替换，失败时缓存兜底
+      else if (state.view === "cat") { loadCat(false); }
       else if (state.view === "search") {
         if (lastQuery) { $("q").value = lastQuery; doSearch(); }
         else { homePool = []; loadHome(false); renderSearchHot(); }
@@ -4547,7 +4617,11 @@
     }).catch(function () {});
   }
   renderCatChips();
-  renderHome();
+  (function () {
+    // 冷启动秒开：先渲染上次的首页内容，再后台刷新
+    var cached = loadPoolCache("home");
+    if (cached && cached.length) { homePool = cached; renderHome(); }
+  })();
   loadHome(false);
   updateFollowDot();
   applySettings();
