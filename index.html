@@ -7,8 +7,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1114" id="themeColor">
 <meta name="apple-mobile-web-app-title" content="影视库">
-<meta name="appver" content="68">
+<meta name="appver" content="69">
 <title>影视库</title>
+<meta property="og:title" id="ogTitle" content="影视库">
+<meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
+<meta property="og:image" id="ogImage" content="icon-512.png">
+<meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317191d'/%3E%3Cpath d='M25 19 L47 32 L25 45 Z' fill='%23ff8f1f'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -413,6 +417,10 @@
   .fchips .chips { flex: 1; min-width: 0; padding: 0; }
   .fchips .chip { padding: 5px 10px; font-size: 12px; min-height: 30px; }
   body.light .fchips .fl { color: #8a9099; }
+  .histBar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .histBar .chip { padding: 5px 10px; font-size: 12px; min-height: 32px; }
+  .histBar .hbtn { margin-left: auto; padding: 5px 10px; font-size: 12px; border: 1px solid #2f3540; border-radius: 7px; background: transparent; color: #c9ced6; }
+  .frow.sel { outline: 1px solid #ff8f1f; background: #1c2027; }
   .cmore { position: absolute; top: 5px; right: 5px; z-index: 3; width: 26px; height: 26px; border-radius: 50%;
     border: none; background: rgba(0,0,0,.55); color: #fff; font-size: 15px; line-height: 1; padding: 0; }
   #blockSheet { position: fixed; inset: 0; z-index: 95; background: rgba(0,0,0,.55); display: none;
@@ -545,10 +553,16 @@
     <section class="view" id="v-mine">
       <div class="mineCard">
         <div class="mt">观看历史 <button class="mtbtn" id="clearHist">清空</button></div>
+        <div id="histBar"></div>
         <div id="histBox"></div>
       </div>
       <div class="mineCard">
+        <div class="mt">我的收藏 <small>想留着以后看的片</small> <button class="mtbtn" id="clearFav">清空</button></div>
+        <div id="favBox"></div>
+      </div>
+      <div class="mineCard">
         <div class="mt">我的缓存 <small>无网络也能看 · 已下载到本机</small> <button class="mtbtn" id="dlClear">清空</button></div>
+        <div id="dlUsage" class="status" style="margin:0 0 8px"></div>
         <div id="dlBox"><div class="empty">还没有缓存的剧集</div></div>
         <div style="font-size:11px;color:#565c66;margin-top:8px;line-height:1.7">
           8 路并行下载，屏幕自动常亮。iOS 不支持后台下载——切到别的 App 会暂停，回来点记录<b style="color:#ff8f1f">断点续传</b>即可，不会从头下。<br>
@@ -594,6 +608,8 @@
     <div class="dact">
       <button class="play" id="dPlay">立即播放</button>
       <button class="star" id="dFollow">追剧</button>
+      <button class="star" id="dFav">收藏</button>
+      <button id="dShare">分享</button>
       <button class="star" id="dPlat">官方源</button>
     </div>
     <div class="dstaff" id="dStaff"></div>
@@ -604,6 +620,10 @@
     <div class="dsec" id="dEpSec">选集</div>
     <div class="eps" id="dEps"></div>
     <div class="dnote" id="dNote"></div>
+    <div class="dsec" id="dDirSec" style="display:none">同导演 <small>作品</small></div>
+    <div class="hrow" id="dDir"></div>
+    <div class="dsec" id="dActSec" style="display:none">同主演 <small>作品</small></div>
+    <div class="hrow" id="dActors"></div>
     <div class="dsec" id="dRelSec" style="display:none">相关推荐 <small>同类 · 同系列优先</small></div>
     <div class="hrow" id="dRel"></div>
   </div>
@@ -698,7 +718,8 @@
     searchSort: "rel", searchQ: "", boardSort: "hot", scrollByView: {},
     searchPool: [], searchPage: 1, searchPageCount: 1, searchTotal: 0, searchGen: 0, searchNote: "", searchViewGen: 0,
     searchFilters: { type: "", cls: "", area: "", year: "" },
-    searchFacets: { cls: [], area: [], years: [] }
+    searchFacets: { cls: [], area: [], years: [] },
+    histFilter: "all", histEdit: false, histSel: {}
   };
   var plyMode = "ep";
 
@@ -1093,6 +1114,7 @@
       w[type] = (w[type] || 0) + base * Math.pow(0.5, days / 45);
     }
     getFollow().forEach(function (f) { add(f.type, 3, f.t); });
+    getFav().forEach(function (f) { add(f.type, 2, f.t); });
     getWH().forEach(function (h) { add(h.type, 1.5, h.t); });
     return w;
   }
@@ -1111,7 +1133,7 @@
     document.body.dataset.view = v;
     updateFollowDot();
     if (v === "follow") renderFollow();
-    if (v === "mine") renderHist();
+    if (v === "mine") { renderHist(); renderFav(); }
     if (v === "parse") renderJumps();
     if (v === "search") {
       if (!$("searchGrid").children.length) { renderSHist(); renderSearchHot(); $("searchSort").style.display = "none"; $("searchFilters").style.display = "none"; $("searchMore").innerHTML = ""; }
@@ -2198,10 +2220,24 @@
   /* ---------- 详情 ---------- */
   var detailRow = null, detailGen = 0;
   var EP_PAGE = 60;
+  function setDFavBtn(on) {
+    var b = $("dFav");
+    if (!b) return;
+    b.textContent = on ? "已收藏" : "收藏";
+    b.className = on ? "star on" : "star";
+  }
   function renderDetailHead(row) {
+    document.title = (row.vod_name || "影视库") + " · 影视库";
+    var ogt = document.getElementById("ogTitle"), ogd = document.getElementById("ogDesc"), ogi = document.getElementById("ogImage");
+    if (ogt) ogt.setAttribute("content", row.vod_name || "影视库");
+    if (ogd) ogd.setAttribute("content", [row.type_name, row.vod_year, row.vod_remarks].filter(Boolean).join(" · ") || "聚合影视搜索与播放");
+    if (ogi) ogi.setAttribute("content", row.vod_pic || "icon-512.png");
     $("dPic").src = row.vod_pic || "";
     $("dName").textContent = row.vod_name || "";
-    $("dMeta").textContent = [row.type_name, row.vod_year, row.vod_remarks].filter(Boolean).join(" · ");
+    var metaTxt = [row.type_name, row.vod_year, row.vod_remarks].filter(Boolean).join(" · ");
+    var hv0 = num(row.vod_hits_month) || hitsOf(row);
+    if (hv0) metaTxt += (metaTxt ? " · " : "") + "热" + fmtHot(hv0);
+    $("dMeta").textContent = metaTxt;
     try {
       $("detail").style.setProperty("--hero", row.vod_pic ? 'url("' + String(row.vod_pic).replace(/"/g, "%22") + '")' : "none");
     } catch (e) {}
@@ -2216,6 +2252,9 @@
     if (row.vod_year) chips.push(row.vod_year + " 年");
     if (row.vod_area) chips.push(row.vod_area);
     if (row.vod_lang) chips.push(row.vod_lang);
+    if (row.vod_pubdate) chips.push("上映 " + String(row.vod_pubdate).slice(0, 10));
+    var dur0 = String(row.vod_duration || "").trim();
+    if (dur0) chips.push(/^\d+$/.test(dur0) ? dur0 + " 分钟" : dur0);
     if (num(row.vod_isend)) chips.push("已完结");
     if (row.vod_remarks) chips.push(row.vod_remarks);
     $("dChips").innerHTML = chips.map(function (c) { return "<i>" + esc(c) + "</i>"; }).join("");
@@ -2240,10 +2279,15 @@
     detailRow = row;
     state.curRow = row;
     if ($("detail").style.display !== "block") { pushOv("detail"); lockScroll(); }
+    if (row.vod_id) {
+      try { history.replaceState({ ov: "detail", id: String(row.vod_id) }, "", "?id=" + encodeURIComponent(row.vod_id)); } catch (e) {}
+    }
     renderDetailHead(row);
     var followed0 = getFollow().some(function (f) { return String(f.id) === String(row.vod_id); });
     $("dFollow").textContent = followed0 ? "已追" : "追剧";
     $("dFollow").className = followed0 ? "star on" : "star";
+    var faved0 = getFav().some(function (f) { return String(f.id) === String(row.vod_id); });
+    setDFavBtn(faved0);
     $("dLines").innerHTML = ""; $("dEps").innerHTML = "";
     $("dLineSec").style.display = "none"; $("dEpSec").style.display = "none";
     $("dNote").textContent = ""; $("dNote").style.cursor = ""; $("dNote").onclick = null;
@@ -2292,6 +2336,7 @@
     renderDetailLines();
     renderDetailEps();
     renderRelated(row);
+    renderSamePeople(row);
     Promise.all(state.lines.map(function (l) {
       return probeRes(l.eps[0].url).then(function (r) { l.resW = r.w || 0; l.resTag = r.tag || ""; });
     })).then(function () {
@@ -2412,6 +2457,38 @@
       paint(pool.concat(j.list || []));
     }).catch(function () { paint(pool); });
   }
+  function renderSamePeople(row) {
+    var gen = detailGen, rid = String(row.vod_id);
+    var dirs = String(row.vod_director || "").split(/[,，/]/).map(function (x) { return x.trim(); }).filter(Boolean);
+    var acts = String(row.vod_actor || "").split(/[,，/]/).map(function (x) { return x.trim(); }).filter(Boolean);
+    function load(name, secId, boxId, tag) {
+      var sec = $(secId), box = $(boxId);
+      if (!sec || !box) return;
+      sec.style.display = "none"; box.innerHTML = "";
+      if (!name) return;
+      api(API + "?ac=videolist&wd=" + encodeURIComponent(name), { retries: 1 }).then(function (j) {
+        if (gen !== detailGen || !detailRow || String(detailRow.vod_id) !== rid || $("detail").style.display !== "block") return;
+        var list = dedupe((j.list || []).filter(function (x) {
+          return x.vod_pic && x.vod_name && String(x.vod_id) !== rid && !isBlocked(x);
+        })).slice(0, 12);
+        if (list.length < 3) return;
+        sec.style.display = "block"; box.innerHTML = "";
+        list.forEach(function (r) {
+          box.appendChild(hcard(r, function () { openDetail(r); }, tag, [r.type_name, r.vod_year].filter(Boolean).join(" · ")));
+        });
+      }).catch(function () {});
+    }
+    load(dirs[0], "dDirSec", "dDir", "导演");
+    load(acts[0], "dActSec", "dActors", "主演");
+  }
+  function openDetailById(id) {
+    if (!id) return;
+    api(API + "?ac=videolist&wd=x&ids=" + encodeURIComponent(id), { front: true, retries: 2 }).then(function (j) {
+      var d = j.list && j.list[0];
+      if (d) openDetail(d, 0);
+      else tip("影片不存在或已下架");
+    }).catch(function () { tip("详情加载失败，请稍后重试"); });
+  }
   $("dBack").onclick = function () { requestCloseDetail(); };
   $("dIntro").onclick = function () { this.classList.toggle("open"); };
   $("dStaff").onclick = function (e) {
@@ -2441,6 +2518,37 @@
       tip("已追，有更新会提醒");
     }
     updateFollowDot();
+  };
+  $("dFav").onclick = function () {
+    if (!detailRow) return;
+    var list = getFav();
+    var i = list.findIndex(function (f) { return String(f.id) === String(detailRow.vod_id); });
+    if (i >= 0) {
+      setFav(list.filter(function (f) { return String(f.id) !== String(detailRow.vod_id); }));
+      setDFavBtn(false);
+      tip("已取消收藏");
+    } else {
+      list.unshift({ id: detailRow.vod_id, name: detailRow.vod_name, pic: detailRow.vod_pic || "", type: detailRow.type_name || "", t: Date.now() });
+      setFav(list.slice(0, 100));
+      setDFavBtn(true);
+      tip("已收藏，可在「我的」查看");
+    }
+    renderFav();
+  };
+  $("dShare").onclick = function () {
+    if (!detailRow) return;
+    var u = location.origin + location.pathname + "?id=" + encodeURIComponent(detailRow.vod_id);
+    var title = detailRow.vod_name || "影视库";
+    if (navigator.share) {
+      navigator.share({ title: title, text: title + " · 影视库", url: u }).catch(function () {});
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(u).then(function () { tip("分享链接已复制"); }, function () {
+        if (legacyCopy(u)) tip("分享链接已复制"); else tip("复制失败，请长按地址栏复制");
+      });
+    } else if (legacyCopy(u)) tip("分享链接已复制");
+    else tip("复制失败，请长按地址栏复制");
   };
   $("dPlat").onclick = function () {
     if (!detailRow) return;
@@ -2489,6 +2597,12 @@
     detailGen++;                 // 作废所有在途的详情/相关推荐回调
     $("detail").style.display = "none";
     $("dIntro").classList.remove("open");
+    document.title = "影视库";
+    var ogt = document.getElementById("ogTitle"), ogd = document.getElementById("ogDesc"), ogi = document.getElementById("ogImage");
+    if (ogt) ogt.setAttribute("content", "影视库");
+    if (ogd) ogd.setAttribute("content", "聚合影视搜索与播放");
+    if (ogi) ogi.setAttribute("content", "icon-512.png");
+    try { history.replaceState({}, "", location.pathname); } catch (e) {}
     unlockScroll();
   }
   function requestCloseDetail() {
@@ -3212,34 +3326,90 @@
   };
 
   /* ---------- 历史 ---------- */
+  function histInFilter(h) {
+    var f = state.histFilter, t = h.t || 0, now = Date.now();
+    if (f === "all") return true;
+    if (f === "today") {
+      var a = new Date(t), b = new Date();
+      return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+    if (f === "7") return t >= now - 7 * 86400000;
+    if (f === "30") return t >= now - 30 * 86400000;
+    return true;
+  }
   function renderHist() {
-    var list = getWH();
-    var box = $("histBox");
+    var all = getWH();
+    var list = all.filter(histInFilter);
+    var box = $("histBox"), bar = $("histBar");
+    box.innerHTML = ""; bar.innerHTML = "";
+    var chips = [["all", "全部"], ["today", "今天"], ["7", "7天"], ["30", "30天"]];
+    chips.forEach(function (s) {
+      var b = document.createElement("span");
+      b.className = "chip" + (state.histFilter === s[0] ? " on" : "");
+      b.textContent = s[1];
+      b.onclick = function () {
+        state.histFilter = s[0]; state.histSel = {};
+        renderHist();
+      };
+      bar.appendChild(b);
+    });
+    var eb = document.createElement("button");
+    eb.className = "hbtn"; eb.textContent = state.histEdit ? "完成" : "编辑";
+    eb.onclick = function () { state.histEdit = !state.histEdit; state.histSel = {}; renderHist(); };
+    bar.appendChild(eb);
+    if (state.histEdit) {
+      var ab = document.createElement("button");
+      ab.className = "hbtn"; ab.textContent = "全选";
+      ab.onclick = function () {
+        var sel = {};
+        list.forEach(function (h) { sel[String(h.id)] = 1; });
+        state.histSel = sel; renderHist();
+      };
+      bar.appendChild(ab);
+      var db = document.createElement("button");
+      db.className = "hbtn"; db.textContent = "删除选中(" + Object.keys(state.histSel).length + ")";
+      db.onclick = function () {
+        var sel = state.histSel, n = Object.keys(sel).length;
+        if (!n) { tip("先选择要删除的记录"); return; }
+        setWH(getWH().filter(function (x) { return !sel[String(x.id)]; }));
+        state.histSel = {}; renderHist(); tip("已删除 " + n + " 条");
+      };
+      bar.appendChild(db);
+    }
     if (!list.length) {
-      box.innerHTML = '<div class="empty">还没有观看记录</div>';
+      box.innerHTML = '<div class="empty">' + (all.length ? "该时间段没有观看记录" : "还没有观看记录") + "</div>";
       return;
     }
-    box.innerHTML = "";
-    var rows = state.showAllHist ? list : list.slice(0, 3);
+    var rows = state.histEdit ? list : (state.showAllHist ? list : list.slice(0, 3));
     rows.forEach(function (h) {
       var d = document.createElement("div");
-      d.className = "frow";
-      d.innerHTML = '<img alt=""><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
+      d.className = "frow" + (state.histSel[String(h.id)] ? " sel" : "");
+      d.innerHTML = '<img alt=""><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx"></button>';
       var img = d.querySelector("img");
       if (h.pic) img.src = h.pic;
       d.querySelector(".fn").textContent = h.name;
       d.querySelector(".fm").textContent = h.epName ? "看到 " + h.epName : "";
-      d.querySelector(".fmain").onclick = function () {
-        openDetail({ vod_id: h.id, vod_name: h.name, vod_pic: h.pic }, h.epIdx || 0);
-      };
-      d.querySelector(".fx").onclick = function (ev) {
-        ev.stopPropagation();
-        setWH(getWH().filter(function (x) { return String(x.id) !== String(h.id); }));
-        renderHist();
-      };
+      var fm = d.querySelector(".fmain"), fx = d.querySelector(".fx");
+      if (state.histEdit) {
+        fx.textContent = state.histSel[String(h.id)] ? "已选" : "选择";
+        fm.onclick = fx.onclick = function (ev) {
+          if (ev) ev.stopPropagation();
+          if (state.histSel[String(h.id)]) delete state.histSel[String(h.id)];
+          else state.histSel[String(h.id)] = 1;
+          renderHist();
+        };
+      } else {
+        fx.textContent = "删除";
+        fm.onclick = function () { openDetail({ vod_id: h.id, vod_name: h.name, vod_pic: h.pic }, h.epIdx || 0); };
+        fx.onclick = function (ev) {
+          ev.stopPropagation();
+          setWH(getWH().filter(function (x) { return String(x.id) !== String(h.id); }));
+          renderHist();
+        };
+      }
       box.appendChild(d);
     });
-    if (list.length > 3) {
+    if (!state.histEdit && list.length > 3) {
       var mb = document.createElement("button");
       mb.className = "morebtn";
       mb.textContent = state.showAllHist ? "收起" : "查看全部 " + list.length + " 条观看历史";
@@ -3249,6 +3419,32 @@
   }
 
   /* ---------- 收藏 ---------- */
+  function renderFav() {
+    var list = getFav(), box = $("favBox");
+    if (!box) return;
+    if (!list.length) { box.innerHTML = '<div class="empty">还没有收藏</div>'; return; }
+    box.innerHTML = "";
+    list.forEach(function (f) {
+      var d = document.createElement("div");
+      d.className = "frow";
+      d.innerHTML = '<img alt=""><div class="fmain"><div class="fn"></div><div class="fm"></div></div><button class="fx">删除</button>';
+      if (f.pic) d.querySelector("img").src = f.pic;
+      d.querySelector(".fn").textContent = f.name;
+      d.querySelector(".fm").textContent = f.type || "已收藏";
+      d.querySelector(".fmain").onclick = function () { openDetail({ vod_id: f.id, vod_name: f.name, vod_pic: f.pic }, 0); };
+      d.querySelector(".fx").onclick = function (ev) {
+        ev.stopPropagation();
+        setFav(getFav().filter(function (x) { return String(x.id) !== String(f.id); }));
+        renderFav();
+      };
+      box.appendChild(d);
+    });
+  }
+  $("clearFav").onclick = function () {
+    if (!getFav().length) { tip("没有收藏"); return; }
+    if (!confirm("清空全部收藏？")) return;
+    setFav([]); renderFav(); tip("已清空收藏");
+  };
 
   /* ---------- 追剧 ---------- */
   function updateFollowDot() {
@@ -3278,6 +3474,7 @@
       status("follow", "");
       rs.forEach(function (r) {
         var upd = r.now > (r.f.eps || 0);
+        r.upd = upd;
         r.f.upd = upd;
         var d = document.createElement("div");
         d.className = "frow";
@@ -3303,7 +3500,20 @@
       });
       setFollow(list);
       updateFollowDot();
+      notifyFollowUpdates(rs);
     });
+  }
+  function notifyFollowUpdates(rs) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    var ups = rs.filter(function (r) { return r.upd; });
+    if (!ups.length) return;
+    try {
+      new Notification("追剧更新", {
+        body: ups.slice(0, 3).map(function (r) { return r.f.name + " 更新至第" + r.now + "集"; }).join("、"),
+        icon: "icon-192.png",
+        tag: "follow-upd"
+      });
+    } catch (e) {}
   }
 
   /* ---------- 解析（我的） ---------- */
@@ -3589,6 +3799,7 @@
                 if (doneN % 8 === 0) {
                   window.__dlLive = { segs: p.segs, bytes: newBytes, doneN: doneN, total: total };
                   savePartial(window.__dlLive);
+                  if (state.view === "mine") renderDL();
                 }
               }
             });
@@ -3660,6 +3871,15 @@
     var all = getDL();
     var list = all.filter(function (x) { return x.done; });
     var parts = all.filter(function (x) { return !x.done; });
+    var usage = $("dlUsage");
+    if (usage) {
+      usage.textContent = all.length ? ("已缓存 " + list.length + " 部 · 占用约 " + fmtMB(all.reduce(function (s, x) { return s + (x.bytes || 0); }, 0)) + (parts.length ? " · " + parts.length + " 个未完成" : "")) : "";
+      if (all.length && navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then(function (es) {
+          if (usage) usage.textContent += " · 本机存储 " + fmtMB(es.usage || 0) + " / " + fmtMB(es.quota || 0);
+        }).catch(function () {});
+      }
+    }
     if (!list.length && !parts.length) { box.innerHTML = '<div class="empty">还没有缓存的剧集</div>'; return; }
     box.innerHTML = "";
     // 未完成（断点续传）排最前
@@ -3905,6 +4125,9 @@
   loadHome(false);
   updateFollowDot();
   applySettings();
+  var deepId = "";
+  try { deepId = new URLSearchParams(location.search).get("id") || ""; } catch (e) {}
+  if (deepId) setTimeout(function () { openDetailById(deepId); }, 350);
   if (window.matchMedia) {
     try {
       matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () {
@@ -3913,16 +4136,17 @@
     } catch (e) {}
   }
   $("clearData").onclick = function () {
-    if (!confirm("确定清除本机的追剧 / 观看历史 / 解析记录吗？")) return;
+    if (!confirm("确定清除本机的追剧 / 收藏 / 观看历史 / 解析记录吗？")) return;
     ["m_follow", "m_fav", "m_prog", "m_whist", "m_shist", "m_plist", "m_purl", "m_block"].forEach(function (k) {
       try { localStorage.removeItem(k); } catch (e) {}
     });
-    renderHome(); renderFollow(); renderHist(); renderPList();
+    renderHome(); renderFollow(); renderHist(); renderFav(); renderPList();
     tip("已清除");
   };
   $("clearHist").onclick = function () {
     if (!confirm("确定清空全部观看历史吗？")) return;
     setWH([]);
+    state.histSel = {}; state.histEdit = false;
     renderHist();
     renderHome();
     tip("已清空观看历史");
@@ -4018,7 +4242,7 @@
     }, function (v) { return v === 1 ? "标准" : v < 1.1 ? "大" : "特大"; });
 
     var g5 = settingsSection("通知");
-    var r5 = sItem(g5, "更新提醒", "iOS 需添加到主屏且系统 16.4 以上");
+    var r5 = sItem(g5, "更新提醒", "打开 App 检查到更新时发本地通知；无后台推送，iOS 需添加主屏且 16.4+");
     var nb = document.createElement("button");
     nb.style.cssText = "padding:7px 12px;font-size:12px;border-radius:7px;border:1px solid #2f3540;background:transparent;color:#c9ced6;flex-shrink:0";
     var perm = "default";
