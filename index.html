@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="83">
+<meta name="appver" content="84">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -152,22 +152,79 @@
   .ep.on { background: #2a2f37; color: #ff8f1f; font-weight: 600; }
   .dnote { font-size: 11px; color: #565c66; margin-top: 10px; line-height: 1.7; }
 
-  #ply { position: fixed; inset: 0; z-index: 999; background: #000; display: none; flex-direction: column; }
+  /* ===== 播放器（v84 仿腾讯布局：竖屏=视频条+下方控制面板；横屏/全屏=视频满屏+面板浮层） ===== */
+  #ply { position: fixed; inset: 0; z-index: 999; background: #0c0d10; display: none; flex-direction: column; }
   #pBack { position: absolute; inset: -28px; z-index: 0; background-position: center; background-size: cover;
     background-color: #0b0c0f; filter: brightness(.5) saturate(1.2); transform: scale(1.08); opacity: 0;
     transition: opacity .25s ease; pointer-events: none; }
   #pBack.on { opacity: 1; }
   #ply .bar { display: flex; align-items: center; gap: 6px; padding: calc(env(safe-area-inset-top) + 8px) 10px 8px;
-    background: #0c0d10; position: relative; z-index: 2; }
+    background: #0c0d10; position: relative; z-index: 2; flex-shrink: 0; }
   #ply .bar b { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #e8eaee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   #ply .bar button { padding: 7px 10px; font-size: 13px; border-radius: 7px; border: none; flex-shrink: 0;
-    background: #1e2228; color: #c9ced6; min-height: 36px; }
-  #ply .bar button.mini { padding: 7px 8px; }
-  #ply iframe { flex: 1; width: 100%; border: none; background: #000; position: relative; z-index: 1; }
-  #ply video { flex: 1; width: 100%; background: transparent; object-fit: contain; min-height: 0; position: relative; z-index: 1; }
-  #ply .proutes, #ply .spdrow, #ply .eplist { position: relative; z-index: 2; }
-  #ply .eplist { max-height: 36vh; overflow-y: auto; padding: 10px; background: rgba(12,13,16,.97);
-    display: flex; flex-wrap: wrap; gap: 8px; }
+    background: #1e2228; color: #c9ced6; min-height: 36px; -webkit-tap-highlight-color: transparent; }
+  #pStage { position: relative; flex: none; width: 100%; height: 56.25vw; max-height: 60vh;
+    background: #000; overflow: hidden; z-index: 1; }
+  #pStage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; background: #000; }
+  #pStage video { position: absolute; inset: 0; width: 100%; height: 100%; background: transparent;
+    object-fit: contain; }
+  /* 横屏（仿旋转）/ 网页全屏 / 解析·离线：视频满屏，面板变浮层 */
+  #ply.land #pStage, #ply.fs #pStage, #ply.full #pStage { flex: 1 1 auto; height: auto; max-height: none; }
+  #ply.fs .bar, #ply.full .bar { display: none; }
+  #pPanel { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    background: #0c0d10; padding: 0 12px calc(14px + env(safe-area-inset-bottom)); position: relative; z-index: 3; }
+  #ply.land #pPanel, #ply.fs #pPanel, #ply.full #pPanel {
+    display: none; position: absolute; left: 0; right: 0; bottom: 0; max-height: 62%;
+    background: rgba(12,13,16,.97); border-radius: 14px 14px 0 0;
+    box-shadow: 0 -8px 24px rgba(0,0,0,.5); padding-top: 10px; }
+  #ply.land #pPanel.open, #ply.fs #pPanel.open, #ply.full #pPanel.open { display: block; }
+  #pPanel .ptabs { display: flex; gap: 6px; padding: 10px 0 10px; position: sticky; top: 0;
+    background: #0c0d10; z-index: 2; flex-wrap: wrap; }
+  #ply.land #pPanel .ptabs, #ply.fs #pPanel .ptabs, #ply.full #pPanel .ptabs { background: rgba(12,13,16,.97); }
+  #pPanel .ptabs button { padding: 6px 13px; font-size: 12.5px; border-radius: 999px; border: 1px solid #2f3540;
+    background: transparent; color: #9aa0a8; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  #pPanel .ptabs button.on { border-color: #ff8f1f; color: #ff8f1f; background: rgba(255,143,31,.1); font-weight: 600; }
+  #pPanel .ptab { display: none; }
+  #pPanel .ptab.on { display: block; }
+  #pPanel .eplist { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 6px; max-height: none; }
+  #pPanel .spdrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 0 8px; }
+  #pPanel .proutes { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 8px; }
+  #pPanel .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 2px 0 6px; }
+  #pPanel .pgrid button { padding: 12px 6px; font-size: 12.5px; border-radius: 9px; border: none;
+    background: #1e2228; color: #d8dbe0; }
+  #pPanel .pgrid button:disabled { color: #4a5058; }
+  #pNext { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 5; display: none;
+    background: rgba(20,22,27,.95); border: 1px solid #2a2f37; border-radius: 10px; padding: 10px 12px;
+    font-size: 12.5px; color: #e8eaee; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  #pNext b { color: #ff8f1f; }
+  #pNext .cd { color: #7d838c; }
+  #pNext .row { display: flex; gap: 8px; margin-top: 8px; }
+  #pNext button { flex: 1; padding: 7px; font-size: 12px; border-radius: 7px; border: none; }
+  #pNext .go { background: #ff8f1f; color: #201004; font-weight: 600; }
+  #pNext .cc { background: #232730; color: #c9ced6; }
+
+  #pTap { position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.34); }
+  #pLoad { position: absolute; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center;
+    pointer-events: none; }
+  #pErr { position: absolute; inset: 0; z-index: 7; display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 10px; background: rgba(0,0,0,.58); padding: 24px; text-align: center; }
+  #pErr .peh { font-size: 15px; font-weight: 600; color: #fff; }
+  #pErr .pem { font-size: 12px; color: #c9ced6; line-height: 1.7; max-width: 82%; }
+  #pErr .per { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  #pErr button { padding: 10px 16px; font-size: 13px; border-radius: 8px; border: 1px solid #3a4048;
+    background: #1e2228; color: #e8eaee; }
+  #pErr button.go { background: #ff8f1f; border-color: #ff8f1f; color: #201004; font-weight: 600; }
+  #pErr button:disabled { opacity: .4; }
+  #pFsExit { position: absolute; right: 10px; top: 10px; z-index: 8; display: none;
+    width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(20,22,27,.72); color: #e8eaee; font-size: 15px; }
+  #ply.fs #pFsExit { display: block; }
+  #pHud { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 7; display: none;
+    background: rgba(15,17,20,.86); color: #fff; font-size: 14px; font-weight: 600; padding: 10px 16px; border-radius: 10px; }
+  #pShot { position: absolute; inset: 0; z-index: 10; display: none; background: rgba(0,0,0,.92);
+    align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 16px; }
+  #pShot img { max-width: 100%; max-height: 74vh; border-radius: 6px; }
+  #pShot small { color: #9aa0a8; font-size: 12px; }
 
   #tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
     display: flex; background: #0c0d10; border-top: 1px solid #1f232a;
@@ -291,15 +348,11 @@
   .spd { flex-shrink: 0; padding: 4px 11px; font-size: 12px; border-radius: 999px; border: 1px solid #2f3540;
     background: transparent; color: #c9ced6; }
 
-  #pNext { position: absolute; left: 10px; right: 10px; bottom: 78px; z-index: 5; display: none;
-    background: rgba(20,22,27,.95); border: 1px solid #2a2f37; border-radius: 10px; padding: 10px 12px;
-    font-size: 12.5px; color: #e8eaee; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
-  #pNext b { color: #ff8f1f; }
-  #pNext .cd { color: #7d838c; }
-  #pNext .row { display: flex; gap: 8px; margin-top: 8px; }
-  #pNext button { flex: 1; padding: 7px; font-size: 12px; border-radius: 7px; border: none; }
-  #pNext .go { background: #ff8f1f; color: #201004; font-weight: 600; }
-  #pNext .cc { background: #232730; color: #c9ced6; }
+  .spdrow { display: flex; align-items: center; gap: 6px; padding: 0 0 9px; overflow-x: auto; flex-shrink: 0; }
+  .spdrow small { font-size: 11px; color: #5f6570; flex-shrink: 0; }
+  .spd { flex-shrink: 0; padding: 4px 11px; font-size: 12px; border-radius: 999px; border: 1px solid #2f3540;
+    background: transparent; color: #c9ced6; }
+  .spd.on { border-color: #ff8f1f; color: #ff8f1f; font-weight: 600; }
 
   #tabbar .tb { position: relative; }
   #tabbar .tb .ndot { position: absolute; top: 5px; left: 50%; margin-left: 7px; width: 7px; height: 7px;
@@ -330,48 +383,9 @@
   .actorlink { color: #c9ced6; border-bottom: 1px dashed #3a4048; }
   .chips .sep { width: 1px; background: #2a2f37; margin: 8px 3px; flex-shrink: 0; }
 
-  /* ===== 阶段1：播放内核 ===== */
-  #pTap { position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center;
-    background: rgba(0,0,0,.34); }
-  #pLoad { position: absolute; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center;
-    pointer-events: none; }
-  #ply.land { inset: 0 auto auto 0; width: 100vh; height: 100vw;
-    transform: translateX(100vw) rotate(90deg); transform-origin: 0 0; }
-  #pLand { display: block; }
-  @media (min-width: 1100px) { #pLand { display: none; } }
-  #pTap button { padding: 12px 22px; font-size: 14px; border-radius: 999px; border: none;
-    background: #ff8f1f; color: #201004; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
-  #pErr { position: absolute; inset: 0; z-index: 7; display: none; align-items: center; justify-content: center;
-    flex-direction: column; gap: 10px; background: rgba(0,0,0,.58); padding: 24px; text-align: center; }
-  #pErr .peh { font-size: 15px; font-weight: 600; color: #fff; }
-  #pErr .pem { font-size: 12px; color: #c9ced6; line-height: 1.7; max-width: 82%; }
-  #pErr .per { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-  #pErr button { padding: 10px 16px; font-size: 13px; border-radius: 8px; border: 1px solid #3a4048;
-    background: #1e2228; color: #e8eaee; }
-  #pErr button.go { background: #ff8f1f; border-color: #ff8f1f; color: #201004; font-weight: 600; }
-  #pErr button:disabled { opacity: .4; }
+  /* ===== 阶段1-2：沉浸全屏 / 手势 HUD（v84 起面板样式并入 #pPanel） ===== */
+  #ply.fs .bar, #ply.fs #pPanel { display: none !important; }
   .spdrow .div { width: 1px; background: #2a2f37; margin: 4px; flex-shrink: 0; }
-
-  /* ===== 阶段1-2：播放器面板 / 沉浸全屏 / 手势 HUD ===== */
-  #ply.fs .bar, #ply.fs .proutes, #ply.fs .spdrow, #ply.fs .eplist, #ply.fs #pNext { display: none !important; }
-  #pFsExit { position: absolute; right: 10px; top: calc(env(safe-area-inset-top) + 10px); z-index: 8; display: none;
-    width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(20,22,27,.72); color: #e8eaee; font-size: 15px; }
-  #ply.fs #pFsExit { display: block; }
-  #pSheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; background: #14161b;
-    border-radius: 14px 14px 0 0; padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
-    transform: translateY(105%); transition: transform .22s ease; }
-  #pSheet.on { transform: translateY(0); }
-  #pSheet .pst { font-size: 12px; color: #7d838c; margin: 0 2px 10px; }
-  #pSheet .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  #pSheet .pgrid button { padding: 12px 6px; font-size: 12.5px; border-radius: 9px; border: none;
-    background: #1e2228; color: #d8dbe0; }
-  #pSheet .pgrid button:disabled { color: #4a5058; }
-  #pHud { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 7; display: none;
-    background: rgba(15,17,20,.86); color: #fff; font-size: 14px; font-weight: 600; padding: 10px 16px; border-radius: 10px; }
-  #pShot { position: absolute; inset: 0; z-index: 10; display: none; background: rgba(0,0,0,.92);
-    align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 16px; }
-  #pShot img { max-width: 100%; max-height: 74vh; border-radius: 6px; }
-  #pShot small { color: #9aa0a8; font-size: 12px; }
 
   /* ===== 阶段2-2：设置面板 ===== */
   #settings { position: fixed; inset: 0; z-index: 80; background: #0f1114; display: none; overflow-y: auto;
@@ -776,30 +790,48 @@
     <div class="bar">
       <button id="pClose" aria-label="关闭播放器">✕</button>
       <b id="pTitle"></b>
-      <button id="pEps" aria-label="选集">选集</button>
       <button id="pDirect" title="系统播放器直连源站，快进加载更快" aria-label="切换播放模式">直连</button>
-      <button id="pFitBtn" class="mini" title="画面比例：智能（点此切换）" aria-label="切换画面比例">智能</button>
       <button id="pLand" title="横屏播放（仿App全屏）" aria-label="横屏播放">横屏</button>
-      <button id="pWeb" title="用浏览器直接播放（黑屏/卡顿时的备选）" aria-label="网页打开">网页</button>
+      <button id="pCtrlBtn" aria-label="调控面板">面板</button>
       <button id="pDl" style="display:none" aria-label="缓存本集">缓存</button>
-      <button id="pMore" class="mini" title="更多播放设置" aria-label="更多播放设置">⋯</button>
     </div>
-    <div class="proutes" id="pRoutes" style="display:none"></div>
-    <div class="proutes" id="pFitRow" style="display:none"></div>
-    <iframe id="pFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
-    <video id="pVideo" playsinline webkit-playsinline controls preload="auto" style="display:none"></video>
-    <div class="spdrow" id="pSpeed" style="display:none"></div>
-    <div class="eplist" id="pEplist" style="display:none"></div>
-    <div id="pNext"></div>
-    <div id="pTap"><button id="pTapBtn">点此播放</button></div>
-    <div id="pLoad"><span class="sspin" style="width:30px;height:30px;border-width:3px"></span></div>
-    <div id="pErr"><div class="peh">播放失败</div><div class="pem" id="pErrMsg"></div>
-      <div class="per"><button class="go" id="pErrCloud">切云播放</button><button class="go" id="pErrRetry">重试</button><button id="pErrLine">换线路</button><button id="pErrWeb">网页打开</button></div>
+    <div id="pStage">
+      <div class="proutes" id="pRoutes" style="display:none"></div>
+      <iframe id="pFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
+      <video id="pVideo" playsinline webkit-playsinline controls preload="auto" style="display:none"></video>
+      <div id="pNext"></div>
+      <div id="pTap"><button id="pTapBtn">点此播放</button></div>
+      <div id="pLoad"><span class="sspin" style="width:30px;height:30px;border-width:3px"></span></div>
+      <div id="pErr"><div class="peh">播放失败</div><div class="pem" id="pErrMsg"></div>
+        <div class="per"><button class="go" id="pErrCloud">切云播放</button><button class="go" id="pErrRetry">重试</button><button id="pErrLine">换线路</button><button id="pErrWeb">网页打开</button></div>
+      </div>
+      <div id="pFsExit" role="button" tabindex="0" aria-label="退出全屏">✕</div>
+      <div id="pHud"></div>
+      <div id="pShot"><img id="pShotImg" alt=""><small>长按图片可保存到相册</small><button id="pShotClose" style="padding:9px 18px;border:none;border-radius:8px;background:#232730;color:#c9ced6">关闭</button></div>
     </div>
-    <div id="pFsExit" role="button" tabindex="0" aria-label="退出全屏">✕</div>
-    <div id="pHud"></div>
-    <div id="pSheet"><div class="pst">播放设置</div><div class="pgrid" id="pSheetGrid"></div></div>
-    <div id="pShot"><img id="pShotImg" alt=""><small>长按图片可保存到相册</small><button id="pShotClose" style="padding:9px 18px;border:none;border-radius:8px;background:#232730;color:#c9ced6">关闭</button></div>
+    <div id="pPanel" class="open">
+      <div class="ptabs">
+        <button data-t="ptabEp" class="on">选集</button>
+        <button data-t="ptabLine">线路</button>
+        <button data-t="ptabSpd">倍速·画质</button>
+        <button data-t="ptabFit">比例</button>
+        <button data-t="ptabMore">更多</button>
+      </div>
+      <div id="pCtrlBody">
+        <div class="ptab on" id="ptabEp"><div class="eplist" id="pEplist"></div></div>
+        <div class="ptab" id="ptabLine">
+          <div class="proutes" id="pRoutes" style="display:none"></div>
+          <div class="eplist" id="pLineList"></div>
+          <div class="empty" id="pLineEmpty" style="display:none">本片只有一条线路</div>
+        </div>
+        <div class="ptab" id="ptabSpd"><div class="spdrow" id="pSpeed" style="display:flex"></div></div>
+        <div class="ptab" id="ptabFit">
+          <div class="proutes" id="pFitRow" style="display:flex"></div>
+          <div class="dnote" style="padding:8px 2px">智能 = 竖屏完整显示 + 横屏铺满；「铺满」在竖屏会裁掉左右画面</div>
+        </div>
+        <div class="ptab" id="ptabMore"><div class="pgrid" id="pSheetGrid"></div></div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -3047,6 +3079,9 @@
   function showPly() {
     if ($("ply").style.display === "flex") return;
     $("ply").style.display = "flex";
+    var p = $("pPanel");
+    if (p) p.classList.add("open");            // 打开即显示控制面板（竖屏仿腾讯播放页）
+    var navEl = $("dNav");
     pushOv("ply");
     lockScroll();
   }
@@ -3060,18 +3095,19 @@
     clearLoadWatch();
     updPLoad();
     destroyEngine();
-    closeSheet();
+    landMode = false;
     $("ply").classList.remove("fs");
+    $("ply").classList.remove("land");
+    $("ply").classList.remove("full");
+    $("pLand").textContent = "横屏";
     $("pHud").style.display = "none";
     $("pShot").style.display = "none";
     preloadMark = "";
     $("ply").style.display = "none";
-    $("pRoutes").style.display = "none";
-    $("pFitRow").style.display = "none";
-    $("pSpeed").style.display = "none";
     $("pFrame").src = "about:blank";
     var v = $("pVideo");
     try { v.pause(); } catch (e) {}
+    try { v.poster = ""; } catch (e) {}
     delete v.dataset.u;          // 必须清掉挂源标记，否则重开同一集会跳过 attachSource
     v.removeAttribute("src"); v.load();
     hidePlyErr();
@@ -3131,9 +3167,8 @@
     state.pcur = PLAYER + encodeURIComponent(ep.url);
     showPly();
     window.plyMode = "ep";
+    $("ply").classList.remove("full");        // 剧集模式：竖屏视频条 + 面板
     clearTimeout(parseWatch);
-    $("pRoutes").style.display = "none";
-    $("pFitRow").style.display = "none";
     if (!directMode) $("pFrame").src = PLAYER + encodeURIComponent(ep.url);
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || ("第" + (i + 1) + "集"));
     renderPEplist();
@@ -3174,7 +3209,7 @@
       box.appendChild(b);
     });
   }
-  $("pWeb").onclick = function () {
+  function webOpen() {
     var u;
     if (window.plyMode === "parse") {
       u = $("pFrame").src;
@@ -3185,7 +3220,7 @@
     }
     openExt(u);
     tip("已在浏览器打开");
-  };
+  }
   var directMode = true;   // 默认直连（系统播放器：快进快 + 秒级进度记忆）
   try { if (localStorage.getItem("m_pmode") === "cloud") directMode = false; } catch (e) {}
   $("pDirect").textContent = directMode ? "直连" : "云播放";
@@ -3250,7 +3285,7 @@
           });
           try { hlsInst.currentLevel = best; qualCur = best; } catch (e) {}
         }
-        if ($("pSpeed") && $("pSpeed").style.display === "flex") renderSpd();
+        renderSpd();                            // 清晰度档位实时反映到面板
       });
       hlsInst.on(H.Events.ERROR, function (e, d) {
         if (!d || !d.fatal) return;
@@ -3296,19 +3331,23 @@
     destroyEngine();
     applyPlayer();
   }
-  function switchNextLine() {
-    if (window.plyMode !== "ep" || state.lines.length < 2) { tip("没有其他线路"); return; }
+  function switchToLine(idx) {
+    if (window.plyMode !== "ep" || !state.lines[idx]) { tip("没有其他线路"); return; }
     var keepEp = state.epIdx;
-    state.lineIdx = (state.lineIdx + 1) % state.lines.length;
-    state.eps = state.lines[state.lineIdx].eps;
+    state.lineIdx = idx;
+    state.eps = state.lines[idx].eps;
     state.epIdx = Math.min(Math.max(keepEp, 0), state.eps.length - 1);
     state.resumeSec = 0;             // 换线路后从该集开头，避免旧线路秒数不匹配
     hidePlyErr();
-    renderDetailLines(); renderDetailEps(); renderPEplist();
+    renderDetailLines(); renderDetailEps(); renderPEplist(); renderLineTab();
     setMediaSession();
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (state.eps[state.epIdx].name || ("第" + (state.epIdx + 1) + "集"));
     applyPlayer();
-    tip("已换到线路：" + state.lines[state.lineIdx].name);
+    tip("已切到线路：" + state.lines[idx].name);
+  }
+  function switchNextLine() {
+    if (window.plyMode !== "ep" || state.lines.length < 2) { tip("没有其他线路"); return; }
+    switchToLine((state.lineIdx + 1) % state.lines.length);
   }
   function showTap() { var t = $("pTap"); if (t) t.style.display = "flex"; }
   function hideTap() { var t = $("pTap"); if (t) t.style.display = "none"; }
@@ -3328,7 +3367,7 @@
   };
   $("pErrRetry").onclick = retryCurrent;
   $("pErrLine").onclick = switchNextLine;
-  $("pErrWeb").onclick = function () { hidePlyErr(); $("pWeb").click(); };
+  $("pErrWeb").onclick = function () { hidePlyErr(); webOpen(); };
   $("pErrCloud").onclick = function () {
     hidePlyErr();
     if (directMode) $("pDirect").click();   // 切到云播放（iframe 线路），由云播放器接管
@@ -3492,9 +3531,8 @@
     if (b) { b.classList.remove("on"); b.style.backgroundImage = ""; }
   }
   function applyFit() {
-    var v = $("pVideo"), b = $("pFitBtn");
+    var v = $("pVideo");
     if (v) v.style.objectFit = fitResolved();
-    if (b) { b.textContent = fitLabel(fitMode); b.title = "画面比例：" + fitLabel(fitMode) + "（点此切换）"; }
   }
   function applyFitSoon() {
     [0, 80, 240, 600].forEach(function (t) { setTimeout(function () { applyFit(); applyPBack(); }, t); });
@@ -3513,20 +3551,12 @@
         fitMode = m[0];
         try { localStorage.setItem("m_fit", fitMode); } catch (e) {}
         applyFit(); renderFitRow();
-        if (fitMode === "auto") tip(fitResolved() === "cover" ? "智能：横屏铺满画面" : "智能：竖屏完整显示，留白用模糊海报填充");
-        else if (fitMode === "cover" && !isLandscapeViewport()) tip("竖屏铺满会裁掉左右画面，推荐「智能」或「适应」");
+        if (fitMode === "auto") tip(landMode ? "智能：横屏铺满画面" : (isLandscapeViewport() ? "智能：横屏铺满画面" : "智能：竖屏视频条完整贴合，无黑边"));
+        else if (fitMode === "cover" && !isLandscapeViewport() && !landMode) tip("竖屏铺满会裁掉左右画面，推荐「智能」或「适应」");
       };
       box.appendChild(b);
     });
   }
-  $("pFitBtn").onclick = function () {
-    if (window.plyMode === "parse") { tip("官方源播放器有自己的画面比例设置，用播放器内的按钮调"); return; }
-    if (!directMode) { tip("云播放的画面比例由云播放器控制；切「直连」后可调"); return; }
-    var box = $("pFitRow");
-    if (box.style.display === "flex") { box.style.display = "none"; return; }
-    renderFitRow();
-    box.style.display = "flex";
-  };
   window.addEventListener("resize", applyFitSoon);
   window.addEventListener("orientationchange", applyFitSoon);
   if (window.screen && screen.orientation && screen.orientation.addEventListener) {
@@ -3746,7 +3776,6 @@
   function toggleWebFs() {
     var p = $("ply");
     var on = p.classList.toggle("fs");
-    if (on) closeSheet();
     return on;
   }
   function nativeFullscreen() {
@@ -3819,11 +3848,8 @@
     if (!document.fullscreenElement) $("ply").classList.remove("fs");
   });
 
-  /* ---------- 播放设置面板 ---------- */
-  var sheetOpen = false;
-  function openSheet() { sheetOpen = true; $("pSheet").classList.add("on"); }
-  function closeSheet() { sheetOpen = false; $("pSheet").classList.remove("on"); }
-  function renderSheet() {
+  /* ---------- 统一调控面板（选集/线路/倍速画质/比例/更多），横屏与全屏下同样可用 ---------- */
+  function renderSheet() {          // 「更多」页签：原播放设置项
     var g = $("pSheetGrid"), v = $("pVideo");
     g.innerHTML = "";
     function item(label, fn, disabled) {
@@ -3835,31 +3861,68 @@
     }
     var fsOn = $("ply").classList.contains("fs");
     item(fsOn ? "退出网页全屏" : "网页全屏", function () { toggleWebFs(); renderSheet(); });
-    item("原生全屏", function () { closeSheet(); nativeFullscreen(); });
+    item("原生全屏", function () { nativeFullscreen(); });
     var pipOk = !!(document.pictureInPictureEnabled || v.webkitSetPresentationMode);
-    item("画中画", function () { closeSheet(); togglePip(); }, !pipOk);
-    item("复制链接", function () { closeSheet(); copyLink(); });
-    item("截图", function () { closeSheet(); takeShot(); }, !v.videoWidth);
-    item("缓存本集", function () { closeSheet(); $("pDl").click(); }, window.plyMode === "parse");
-    item("倍速/清晰度", function () {
-      closeSheet();
-      var b = $("pEplist");
-      var open = b.style.display !== "flex";
-      b.style.display = open ? "flex" : "none";
-      $("pSpeed").style.display = (open && directMode) ? "flex" : "none";
-      if (open) renderSpd();
-    });
-    item("网页打开", function () { closeSheet(); $("pWeb").click(); });
+    item("画中画", function () { togglePip(); }, !pipOk);
+    item("复制链接", function () { copyLink(); });
+    item("截图", function () { takeShot(); }, !v.videoWidth);
+    item("缓存本集", function () { $("pDl").click(); }, window.plyMode === "parse");
+    item("网页打开", function () { webOpen(); });
   }
-  $("pMore").onclick = function () {
-    if (sheetOpen) { closeSheet(); return; }
-    renderSheet();
-    openSheet();
+  function renderLineTab() {        // 「线路」页签：列出全部播放线路，点击即时切换
+    var box = $("pLineList"), empty = $("pLineEmpty");
+    if (!box) return;
+    box.innerHTML = "";
+    var lines = state.lines || [];
+    var parse = window.plyMode === "parse";
+    if (parse) { box.style.display = "none"; if (empty) empty.style.display = "none"; return; }
+    if (!lines.length) { box.style.display = "none"; if (empty) { empty.style.display = "block"; empty.textContent = "先播放某一集后再切换线路"; } return; }
+    box.style.display = "flex";
+    if (empty) empty.style.display = "none";
+    lines.forEach(function (l, i) {
+      var b = document.createElement("span");
+      b.className = "pline" + (i === state.lineIdx ? " on" : "");
+      b.textContent = l.name + (l.q && l.q.tag ? "（" + (l.resTag || l.q.tag) + "）" : "") + "（" + l.eps.length + "集）";
+      b.onclick = function () {
+        if (i === state.lineIdx) { tip("当前已是该线路"); return; }
+        switchToLine(i);
+        renderLineTab();
+      };
+      box.appendChild(b);
+    });
+    if (lines.length < 2) {
+      if (empty) { empty.style.display = "block"; empty.textContent = "本片只有一条线路"; }
+    }
+  }
+  var pCtrlReady = {};
+  function switchPTab(name) {
+    var tabs = document.querySelectorAll("#pPanel .ptabs button");
+    var panes = document.querySelectorAll("#pCtrlBody .ptab");
+    tabs.forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-t") === name); });
+    panes.forEach(function (p) { p.classList.toggle("on", p.id === name); });
+    if (name === "ptabEp") renderPEplist();
+    else if (name === "ptabLine") renderLineTab();
+    else if (name === "ptabSpd") renderSpd();
+    else if (name === "ptabFit") renderFitRow();
+    else if (name === "ptabMore" && !pCtrlReady.more) { renderSheet(); pCtrlReady.more = true; }
+  }
+  $("pCtrlBtn").onclick = function () {
+    var p = $("pPanel");
+    var willOpen = !p.classList.contains("open") || $("ply").classList.contains("land") || $("ply").classList.contains("fs") || $("ply").classList.contains("full");
+    if ($("ply").classList.contains("land") || $("ply").classList.contains("fs") || $("ply").classList.contains("full")) {
+      p.classList.toggle("open", willOpen);
+    } else {
+      p.classList.toggle("open", willOpen);   // 竖屏也可收起面板，让视频条更大
+    }
+    if (p.classList.contains("open")) {
+      var active = p.querySelector(".ptabs button.on");
+      switchPTab(active ? active.getAttribute("data-t") : "ptabEp");
+    }
   };
-  $("ply").addEventListener("click", function (e) {
-    if (!sheetOpen) return;
-    if (e.target.closest && e.target.closest("#pSheet, #pMore")) return;
-    closeSheet();
+  document.querySelector("#pPanel .ptabs").addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("button");
+    if (!b) return;
+    switchPTab(b.getAttribute("data-t"));
   });
 
   /* ---------- iOS 手势：左右滑调进度（音量 iOS 不允许 JS 修改，仅提示） ---------- */
@@ -3943,14 +4006,6 @@
     navigator.connection.addEventListener("change", function () { if (navigator.onLine) onNetworkOnline(); });
   }
   $("pClose").onclick = function () { requestClosePly(); };
-  $("pEps").onclick = function () {
-    if (window.plyMode === "parse") { tip("解析线路自带选集，请在播放器内操作"); return; }
-    var b = $("pEplist");
-    var open = b.style.display !== "flex";
-    b.style.display = open ? "flex" : "none";
-    $("pSpeed").style.display = (open && directMode) ? "flex" : "none";
-    if (open) renderSpd();
-  };
 
   /* ---------- 历史 ---------- */
   function histInFilter(h) {
@@ -4182,19 +4237,20 @@
     hidePlyErr();
     clearMediaSession();
     destroyEngine();
-    closeSheet();
     $("ply").classList.remove("fs");
+    $("ply").classList.add("full");           // 解析模式：视频满屏，线路面板浮层可唤出
+    landMode = false;
     try { v.pause(); } catch (e) {}
     v.removeAttribute("src"); v.load(); v.style.display = "none";
     var f = $("pFrame");
     f.style.display = "block";
     showPly();
     $("pTitle").textContent = s.name + " · 官方源播放";
-    $("pEplist").innerHTML = ""; $("pEplist").style.display = "none";
-    $("pFitRow").style.display = "none";
-    $("pSpeed").style.display = "none";
+    $("pEplist").innerHTML = "";
     hideNext();
     renderPRoutes(s.name);
+    switchPTab("ptabLine");
+    $("pPanel").classList.add("open");        // 解析模式默认展开线路面板，卡住可即时换
     armParseWatch();
     // 先空载断开旧页（立刻停掉旧站的脚本与视频流），再挂新线路——切换更快更省资源
     f.src = "about:blank";
@@ -4570,14 +4626,11 @@
     hidePBack();
     hidePlyErr();
     clearMediaSession();
-    closeSheet();
     $("ply").classList.remove("fs");
+    $("ply").classList.add("full");           // 离线播放：满屏 + 面板浮层
+    landMode = false;
     try { $("pVideo").pause(); } catch (e) {}
     $("pVideo").style.display = "none";
-    $("pEplist").style.display = "none";
-    $("pRoutes").style.display = "none";
-    $("pFitRow").style.display = "none";
-    $("pSpeed").style.display = "none";
     hideNext();
     showPly();
     $("pTitle").textContent = d.t + " · 离线播放";
