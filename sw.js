@@ -1,11 +1,14 @@
 /* 影视库 离线缓存外壳 v8:秒开 + 后台更新 + 弱网兜底 + 海报缓存 + 剧集离线缓存 */
-var CACHE = "yingshiku-v71";
+var CACHE = "yingshiku-v72";
 var IMG_CACHE = "yingshiku-imgs-v1";
 var DL_CACHE = "yingshiku-dl";
-var SHELL = ["./", "./index.html", "./dlplayer.html", "./icon-192.png", "./icon-512.png", "./manifest.webmanifest"];
+var SHELL = ["./", "./index.html", "./dlplayer.html", "./hls.min.js", "./icon-192.png", "./icon-512.png", "./manifest.webmanifest"];
 var NET_TIMEOUT = 8000;
 self.addEventListener("install", function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
+  // 逐个缓存：单个资源 404 不再让整个 SW 安装失败
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    return Promise.all(SHELL.map(function (u) { return c.add(u).catch(function () {}); }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener("activate", function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
@@ -19,7 +22,7 @@ function fetchWithTimeout(req) {
     fetch(req).then(function (r) {
       if (done) return;
       done = true; clearTimeout(t);
-      try { caches.open(CACHE).then(function (c) { c.put(req, r.clone()); }); } catch (err) {}
+      if (r && r.ok) { try { caches.open(CACHE).then(function (c) { c.put(req, r.clone()); }); } catch (err) {} }
       resolve(r);
     }).catch(function () {
       if (done) return;
@@ -49,7 +52,11 @@ self.addEventListener("fetch", function (e) {
     e.respondWith(
       caches.open(IMG_CACHE).then(function (c) {
         return c.match(e.request).then(function (hit) {
-          if (hit) return hit;
+          if (hit) {
+            // 重新 put 把它移到队尾，近似 LRU（淘汰时删队首）
+            try { c.put(e.request, hit.clone()); } catch (err) {}
+            return hit;
+          }
           return fetch(e.request).then(function (r) {
             if (r && (r.status === 200 || r.type === "opaque")) {
               c.put(e.request, r.clone());
@@ -71,7 +78,7 @@ self.addEventListener("fetch", function (e) {
         fetch(e.request, { cache: "reload" }).then(function (r) {
           if (done) return;
           done = true; clearTimeout(t);
-          try { caches.open(CACHE).then(function (c) { c.put(e.request, r.clone()); }); } catch (err) {}
+          if (r && r.ok) { try { caches.open(CACHE).then(function (c) { c.put(e.request, r.clone()); }); } catch (err) {} }
           resolve(r);
         }).catch(function () {
           if (done) return;
