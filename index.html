@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="90">
+<meta name="appver" content="91">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -1706,6 +1706,109 @@
   /* ---------- 首页（多页拉取 + 热度排行） ---------- */
   var homeLoading = false, homePool = [];
   var homeRenderTimer = null;
+
+  /* ---------- 离线烘焙片库（catalog.json + eps/<桶>.json）----------
+     v91：资源站撤 CORS + 公共代理全部失效后，接口在浏览器里不可达。
+     把片库与集数烘焙进仓库，接口全挂时仍可搜索、看详情、选集播放。 */
+  var BK = { cat: null, idx: null, buckets: {}, loading: {}, latest: null, cats: null };
+  var BK_BUCKETS = 24;
+  function bkNorm(it) {
+    return { vod_id: String(it.i), vod_name: it.n, type_name: it.t, vod_year: it.y,
+      vod_remarks: it.r, vod_hits: it.h, vod_hits_day: it.d, vod_pic: it.p,
+      vod_time: it.ts, vod_area: it.a, vod_lang: it.l, vod_class: it.t,
+      vod_ep_count: it.e, vod_play_url: "" };
+  }
+  function bkIndex() {
+    if (!BK.cat) return;
+    BK.idx = {};
+    BK.cat.items.forEach(function (it) { BK.idx[String(it.i)] = it; });
+  }
+  function bkLoad() {
+    var cached = getJ("m_bkcat", null);
+    if (cached && cached.items && cached.items.length) { BK.cat = cached; bkIndex(); }
+    return fetch("catalog.json", { cache: "no-cache" }).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (j) {
+      if (j && j.items && j.items.length) {
+        BK.cat = j; setJ("m_bkcat", j); bkIndex();
+        if (state.view === "home" && !homePool.length) bkRenderHome();
+      }
+      return BK.cat;
+    }).catch(function () { return BK.cat; });
+  }
+  function bkSearch(q, limit) {
+    if (!BK.cat) return [];
+    q = String(q || "").trim().toLowerCase();
+    if (!q) return [];
+    var hits = [];
+    var items = BK.cat.items;
+    for (var i = 0; i < items.length; i++) {
+      var n = String(items[i].n || "").toLowerCase();
+      if (n.indexOf(q) < 0) continue;
+      hits.push({ it: items[i], s: n === q ? 3 : (n.indexOf(q) === 0 ? 2 : 1) });
+    }
+    hits.sort(function (a, b) { return (b.s - a.s) || ((b.it.h || 0) - (a.it.h || 0)); });
+    return hits.slice(0, limit || 40).map(function (x) { return bkNorm(x.it); });
+  }
+  function bkById(id) { return BK.idx ? (BK.idx[String(id)] || null) : null; }
+  function bkEpisodes(id) {
+    id = String(id);
+    var b = Math.abs(parseInt(id, 10) || 0) % BK_BUCKETS;
+    var key = (b < 10 ? "0" : "") + b;
+    if (BK.buckets[key]) return Promise.resolve(BK.buckets[key][id] || null);
+    if (BK.loading[key]) return BK.loading[key].then(function (m) { return m[id] || null; });
+    BK.loading[key] = fetch("eps/" + key + ".json", { cache: "force-cache" })
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (m) { BK.buckets[key] = m; return m; })
+      .catch(function () { return {}; });
+    return BK.loading[key].then(function (m) { return m[id] || null; });
+  }
+  function bkRowWithUrl(row, u) {
+    var out = {}, k;
+    for (k in row) if (Object.prototype.hasOwnProperty.call(row, k)) out[k] = row[k];
+    out.vod_play_url = u;
+    return out;
+  }
+  function bkHomeRows(limit) {
+    if (!BK.latest || !BK.idx) return [];
+    var out = [];
+    for (var i = 0; i < BK.latest.length && out.length < (limit || 60); i++) {
+      var it = BK.idx[String(BK.latest[i])];
+      if (it) out.push(bkNorm(it));
+    }
+    return out;
+  }
+  function bkCatRows(catId, limit) {
+    if (!BK.cats || !BK.idx) return [];
+    var ids = BK.cats[String(catId)] || [];
+    var out = [];
+    for (var i = 0; i < ids.length && out.length < (limit || 60); i++) {
+      var it = BK.idx[String(ids[i])];
+      if (it) out.push(bkNorm(it));
+    }
+    return out;
+  }
+  function bkRenderHome() {
+    var rows = bkHomeRows(60);
+    if (!rows.length) return;
+    homePool = rows;
+    renderHome();
+    status("home", "离线片库 · " + (BK.cat ? BK.cat.n : rows.length) + " 部"
+      + ((BK.cat && BK.cat.updated) ? " · " + BK.cat.updated + " 更新" : ""));
+  }
+  function bkLoadMeta() {
+    Promise.all([
+      fetch("latest.json", { cache: "force-cache" })
+        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+      fetch("cats.json", { cache: "force-cache" })
+        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+    ]).then(function (a) {
+      BK.latest = a[0]; BK.cats = a[1] || {};
+      if (state.view === "home" && !homePool.length) bkRenderHome();
+    });
+  }
+  bkLoad();
+  bkLoadMeta();
   function scheduleHomeRender() {
     if (homeRenderTimer) return;
     homeRenderTimer = setTimeout(function () { homeRenderTimer = null; renderHome(); }, 60);
@@ -1737,6 +1840,9 @@
             if (newIds > 0) tip("已更新，新增 " + newIds + " 部内容");
             else { status("home", "已是最新"); setTimeout(function () { if (document.getElementById("st-home").textContent === "已是最新") status("home", ""); }, 2500); }
           }
+          else if (!autoRetried && !homePool.length && BK.cat) {
+            bkRenderHome(); state.loading = false;   // v91：接口不可达 → 烘焙片库兜底
+          }
           else if (!autoRetried) {
             setTimeout(function () {
               if (gen === state.homeGen) loadHome(false, true);
@@ -1745,6 +1851,7 @@
           } else {
             var cch = loadPoolCache("home");
             if (cch) { homePool = cch; renderHome(); status("home", "更新失败 · 显示缓存内容，下拉刷新重试"); }
+            else if (BK.cat) { bkRenderHome(); }
             else status("home", "加载失败，下拉刷新重试");
             state.loading = false;
           }
@@ -2280,6 +2387,15 @@
             status("cat", "更新失败 · 显示缓存内容，点此重试");
             $("st-cat").style.cursor = "pointer";
             $("st-cat").onclick = function () { loadCat(false); };
+          } else if (failed >= pages.length && BK.cat) {      // v91：接口不可达 → 烘焙片库兜底
+            var bkRows = bkCatRows(state.catId, 120);
+            if (bkRows.length) {
+              catPool = bkRows;
+              renderCatGrid();
+              status("cat", "离线片库 · 共 " + bkRows.length + " 部");
+              catLoading = false;
+              return;
+            }
           } else if (failed >= pages.length && !autoRetried) {
             status("cat", "网络不稳，自动重试中…");
             setTimeout(function () {
@@ -2580,6 +2696,7 @@
     $("searchGrid").innerHTML = ""; $("detail").style.display = "none";
     // 本地池即时预结果：网络回来前先显示片库里的匹配，消除骨架屏等待
     var preList = localPreResults(raw);
+    if (!preList.length) preList = bkSearch(raw, 40);   // v91：离线烘焙片库兜底
     var preFromSug = false;
     if (!preList.length && sugCache[raw]) {       // 输入时联想已拉网：点搜索直接复用
       preList = dedupe((sugCache[raw] || []).filter(function (x) { return x.vod_pic && x.vod_name && x.vod_play_url && !isBlocked(x); }));
@@ -3003,18 +3120,27 @@
     if (!row.vod_play_url) {
       $("dNote").textContent = "正在获取选集…";
       $("dEps").innerHTML = '<span class="skw" style="width:100%;height:38px;display:block"></span>';
-      // 用户主动点开：请求插队 + 双倍重试；失败可点击重试
-      api(API + "?ac=videolist&wd=x&ids=" + row.vod_id, { front: true, retries: 2 }).then(function (j) {
+      // 用户主动点开：先用烘焙集数（离线可用），没有再走接口（v91）
+      bkEpisodes(row.vod_id).then(function (b) {
         if (gen !== detailGen || $("detail").style.display !== "block") return;
-        var d = j.list && j.list[0];
-        if (!d || !d.vod_play_url) { $("dNote").textContent = "未取到选集（资源可能已下架）"; return; }
-        $("dNote").style.cursor = ""; $("dNote").onclick = null;
-        openDetail(d, jumpEp);
-      }).catch(function (e) {
-        if (gen !== detailGen || $("detail").style.display !== "block") return;
-        $("dNote").textContent = "获取失败，点此重试";
-        $("dNote").style.cursor = "pointer";
-        $("dNote").onclick = function () { openDetail(row, jumpEp); };
+        if (b && b.u) {
+          $("dNote").textContent = "";
+          openDetail(bkRowWithUrl(row, b.u), jumpEp);
+          return;
+        }
+        // 注意：v91 起详情去掉 wd=x（资源站现在 wd 与 ids 同时给会返回 0 条）
+        api(API + "?ac=videolist&ids=" + row.vod_id, { front: true, retries: 2 }).then(function (j) {
+          if (gen !== detailGen || $("detail").style.display !== "block") return;
+          var d = j.list && j.list[0];
+          if (!d || !d.vod_play_url) { $("dNote").textContent = "未取到选集（资源可能已下架）"; return; }
+          $("dNote").style.cursor = ""; $("dNote").onclick = null;
+          openDetail(d, jumpEp);
+        }).catch(function (e) {
+          if (gen !== detailGen || $("detail").style.display !== "block") return;
+          $("dNote").textContent = "获取失败，点此重试";
+          $("dNote").style.cursor = "pointer";
+          $("dNote").onclick = function () { openDetail(row, jumpEp); };
+        });
       });
       return;
     }
