@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="92">
+<meta name="appver" content="93">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -854,7 +854,32 @@
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var API = "https://bfzyapi.com/api.php/provide/vod/";
+  /* 数据源：2026-10-30 全网 55 个采集接口实测后重排（依据 srcbench/片源结论.md）
+     主源 最大资源：12/12 出流、中位 1280x720、最高 1920x1080、0 加密、0 广告、直链 m3u8
+     备源按实测综合分降序；任一源失败自动轮换（同为 maccms 协议，query 参数通用） */
+  var API_BASES = [
+    "https://api.zuidapi.com/api.php/provide/vod/",   // 1 最大资源 78.5
+    "https://cj.ffzyapi.com/api.php/provide/vod/",    // 2 非凡资源 78.3
+    "https://p2100.net/api.php/provide/vod/",         // 3 飘零资源 71.8
+    "https://www.mdzyapi.com/api.php/provide/vod/",   // 4 魔都资源 66.7（高码率，部分 AES-128）
+    "https://bfzyapi.com/api.php/provide/vod/"        // 5 暴风资源 63.9（旧主源）
+  ];
+  var API = API_BASES[0], apiTried = {};
+  function apiRotate(u) {
+    var base = null;
+    for (var i = 0; i < API_BASES.length; i++) {
+      if (u.indexOf(API_BASES[i]) === 0) { base = API_BASES[i]; break; }
+    }
+    if (!base || apiTried[u]) return null;
+    apiTried[u] = 1;
+    var next = API_BASES[(API_BASES.indexOf(base) + 1) % API_BASES.length];
+    return u.replace(base, next);
+  }
+  function apiProxy(u) {
+    return fetch("https://api.allorigins.win/get?url=" + encodeURIComponent(u))
+      .then(function (r) { if (!r.ok) throw new Error("proxy"); return r.json(); })
+      .then(function (j) { return (j && j.contents) ? JSON.parse(j.contents) : {}; });
+  }
   var PLAYER = "https://wsyzy.vip/m3u8/?url=";
   var IMG_FB = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 142'%3E%3Crect width='100' height='142' fill='%231a1d23'/%3E%3Cpath d='M40 55 L66 71 L40 87 Z' fill='%233a4048'/%3E%3C/svg%3E";
   document.addEventListener("error", function (e) {
@@ -1065,18 +1090,15 @@
     }, function (e) {
       clearTimeout(tm);
       if (retries > 0) return apiFetch(u, { fresh: opts && opts.fresh, retries: retries - 1 });
-      // 资源站直连全败（2026-10-30 起 bfzy 撤除 ACAO 跨域头）→ 公共 CORS 代理兜底
-      if (u.indexOf("bfzyapi.com") >= 0) {
-        return fetch("https://api.allorigins.win/get?url=" + encodeURIComponent(u))
-          .then(function (r) { if (!r.ok) throw e; return r.json(); })
-          .then(function (j) { return (j && j.contents) ? JSON.parse(j.contents) : {}; })
-          .then(function (d) {
-            apiCache[u] = { d: d, t: Date.now() };
-            pruneApiCache();
-            return d;
-          });
-      }
-      throw e;
+      // 2026-10-30 实测：55 个采集站全部撤了 ACAO，浏览器直连必败 -> 先轮换主备源
+      var alt = apiRotate(u);
+      if (alt) return apiFetch(alt, { fresh: true, retries: 1 });
+      // 末位兜底：公共 CORS 代理（allorigins，实测可用，延迟 5~20s）
+      return apiProxy(u).then(function (d) {
+        apiCache[u] = { d: d, t: Date.now() };
+        pruneApiCache();
+        return d;
+      }, function () { throw e; });
     }).then(function (d) {
       apiCache[u] = { d: d, t: Date.now() };
       pruneApiCache();
@@ -1715,6 +1737,7 @@
   function bkNorm(it) {
     return { vod_id: String(it.i), vod_name: it.n, type_name: it.t, vod_year: it.y,
       vod_remarks: it.r, vod_hits: it.h, vod_hits_day: it.d, vod_pic: it.p,
+      vod_douban_score: it.s || "",
       vod_time: it.ts, vod_area: it.a, vod_lang: it.l, vod_class: it.t,
       vod_ep_count: it.e, vod_play_url: "" };
   }
@@ -1730,7 +1753,13 @@
       return r.ok ? r.json() : null;
     }).then(function (j) {
       if (j && j.items && j.items.length) {
-        BK.cat = j; setJ("m_bkcat", j); bkIndex();
+        BK.cat = j;
+        // 5MB 级片库不再写 localStorage（iOS 每源配额约 5MB，写满后后续写入会静默失败）
+        try {
+          if (JSON.stringify(j).length < 3500000) setJ("m_bkcat", j);
+          else { try { localStorage.removeItem("m_bkcat"); } catch (e2) {} }
+        } catch (e1) {}
+        bkIndex();
         if (state.view === "home" && !homePool.length) bkRenderHome();
       }
       return BK.cat;
