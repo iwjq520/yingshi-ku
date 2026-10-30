@@ -20,7 +20,8 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="103">
+<script>try{localStorage.removeItem("m_bkcat");localStorage.removeItem("m_poolcache");}catch(e){}</script>
+<meta name="appver" content="104">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -1169,7 +1170,7 @@
   function getBlock() { return getJ("m_block", "[]"); }
   function setBlock(a) { setJ("m_block", a); }
   /* ---------- 片池缓存：冷启动秒开（上次内容先渲染，后台刷新替换） ---------- */
-  var POOL_CACHE_VER = 3;
+  var POOL_CACHE_VER = 4;   // v102 回滚后 +1：作废旧片池缓存
   function trimRows(rows, cap) {
     var out = [];
     (rows || []).slice(0, cap).forEach(function (r) {
@@ -1724,13 +1725,13 @@
     BK.cat.items.forEach(function (it) { BK.idx[String(it.i)] = it; });
   }
   function bkLoad() {
-    var cached = getJ("m_bkcat", null);
+    var cached = getJ("m_bkcat2", null);
     if (cached && cached.items && cached.items.length) { BK.cat = cached; bkIndex(); }
     return fetch("catalog.json", { cache: "no-cache" }).then(function (r) {
       return r.ok ? r.json() : null;
     }).then(function (j) {
       if (j && j.items && j.items.length) {
-        BK.cat = j; setJ("m_bkcat", j); bkIndex();
+        BK.cat = j; setJ("m_bkcat2", j); bkIndex();
         if (state.view === "home" && !homePool.length) bkRenderHome();
       }
       return BK.cat;
