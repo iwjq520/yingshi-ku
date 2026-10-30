@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="91">
+<meta name="appver" content="92">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -3811,6 +3811,17 @@
       var v = $("pVideo");
       if (!v || v.readyState >= 2 || v.currentTime > 0) return;
       showPlyErr("加载缓慢或已失败：可切云播放、重试或换线路");
+      // v92：面板出现后再等 8 秒仍无画面 → 自动降级云播放（用户不必手点）
+      loadWatch2 = setTimeout(function () {
+        var v2 = $("pVideo");
+        if (!v2 || v2.readyState >= 2 || v2.currentTime > 0) return;
+        if (window.plyMode === "ep" && directMode && $("ply")
+            && $("ply").style.display === "flex") {
+          hidePlyErr();
+          $("pDirect").click();
+          tip("直连加载失败，已自动切换云播放");
+        }
+      }, 8000);
     }, 22000);
   }
   function updPLoad() {
