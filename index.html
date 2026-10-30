@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="84">
+<meta name="appver" content="85">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -204,9 +204,22 @@
   #pNext .cc { background: #232730; color: #c9ced6; }
 
   #pTap { position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center;
-    background: rgba(0,0,0,.34); }
+    background: rgba(0,0,0,.24); }
+  #pTapBtn { width: 72px; height: 72px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(15,17,20,.55); display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent; }
+  #pTapBtn::after { content: ""; display: block; margin-left: 6px;
+    border-left: 26px solid #fff; border-top: 16px solid transparent; border-bottom: 16px solid transparent; }
   #pLoad { position: absolute; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center;
     pointer-events: none; }
+  .plBox { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .tdots { display: flex; align-items: center; gap: 10px; height: 26px; }
+  .tdots i { display: block; width: 9px; height: 9px; border-radius: 5px; animation: tdotb 1s ease-in-out infinite; }
+  .tdots .d1 { background: #ff8f1f; }
+  .tdots .d2 { background: #2ecc5e; animation-delay: .16s; }
+  .tdots .d3 { background: #3b82f6; height: 24px; animation-delay: .32s; }
+  @keyframes tdotb { 0%, 100% { transform: translateY(5px); } 50% { transform: translateY(-5px); } }
+  .ploadtxt { font-size: 14px; color: rgba(255,255,255,.92); letter-spacing: 2px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
   #pErr { position: absolute; inset: 0; z-index: 7; display: none; align-items: center; justify-content: center;
     flex-direction: column; gap: 10px; background: rgba(0,0,0,.58); padding: 24px; text-align: center; }
   #pErr .peh { font-size: 15px; font-weight: 600; color: #fff; }
@@ -800,8 +813,8 @@
       <iframe id="pFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
       <video id="pVideo" playsinline webkit-playsinline controls preload="auto" style="display:none"></video>
       <div id="pNext"></div>
-      <div id="pTap"><button id="pTapBtn">点此播放</button></div>
-      <div id="pLoad"><span class="sspin" style="width:30px;height:30px;border-width:3px"></span></div>
+      <div id="pTap"><button id="pTapBtn" aria-label="播放"></button></div>
+      <div id="pLoad"><div class="plBox"><div class="tdots"><i class="d1"></i><i class="d2"></i><i class="d3"></i></div><div class="ploadtxt">精彩内容马上呈现</div></div></div>
       <div id="pErr"><div class="peh">播放失败</div><div class="pem" id="pErrMsg"></div>
         <div class="per"><button class="go" id="pErrCloud">切云播放</button><button class="go" id="pErrRetry">重试</button><button id="pErrLine">换线路</button><button id="pErrWeb">网页打开</button></div>
       </div>
@@ -856,7 +869,7 @@
     progressSaveSec: 4,            // 进度落盘防抖间隔
     apiTimeoutMs: 10000,           // 接口超时：失败更快反馈并自动重试
     skipIntroSec: 0,               // 跳过片头秒数（0=关闭，设置面板可调）
-    autoplayTapFallback: true,     // 自动播放被策略拦截时就地提示"点此播放"
+    autoplayTapFallback: true,     // 自动播放被策略拦截时就地显示居中播放按钮（腾讯式）
     hlsCdns: [                     // 桌面端 HLS 回退库（按顺序尝试，国内 CDN 优先）
       "hls.min.js",                // 同源自托管，离线可用
       "https://cdn.bootcdn.net/ajax/libs/hls.js/1.5.15/hls.min.js",
@@ -3173,7 +3186,6 @@
     $("pTitle").textContent = (state.curRow ? state.curRow.vod_name + " · " : "") + (ep.name || ("第" + (i + 1) + "集"));
     renderPEplist();
     setMediaSession();
-    if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
     applyPlayer();
   }
   var playSess = null;
@@ -3313,6 +3325,7 @@
   }
   function showPlyErr(msg) {
     if (!$("pErr")) return;
+    var pl = $("pLoad"); if (pl) pl.style.display = "none";   // 错误面板出现时停掉加载动画
     $("pErrMsg").textContent = msg || "播放失败，可能是片源失效或防盗链";
     $("pErrLine").disabled = !(window.plyMode === "ep" && state.lines.length > 1);
     $("pErrWeb").style.display = window.plyMode === "ep" ? "" : "none";
@@ -3398,7 +3411,8 @@
   function updPLoad() {
     var v = $("pVideo"), el = $("pLoad");
     if (!el) return;
-    var show = window.plyMode === "ep" && directMode && v && !v.error && v.readyState < 3 && v.getAttribute("src");
+    var show = window.plyMode === "ep" && directMode && v && !v.error && v.readyState < 3
+      && $("ply") && $("ply").style.display === "flex";   // 不要求已挂 src：点击起挂源全程都有加载反馈；播放层关闭/解析模式不显示
     el.style.display = show ? "flex" : "none";
   }
 
@@ -3573,6 +3587,7 @@
     applyFit();
     applyPBack();
     if (directMode) {
+      try { $("pLoad").style.display = "flex"; } catch (e) {}   // 点击即显示加载动画，不等 loadstart（hls.js 挂源前的空窗也要有反馈）
       if (v.dataset.u !== ep.url || !v.getAttribute("src")) {
         v.dataset.u = ep.url;
         hideTap();
@@ -4255,7 +4270,6 @@
     // 先空载断开旧页（立刻停掉旧站的脚本与视频流），再挂新线路——切换更快更省资源
     f.src = "about:blank";
     setTimeout(function () { f.src = s.url + encodeURIComponent(u); }, 80);
-    if (/iP(hone|ad|od)/i.test(navigator.userAgent)) tip("点一下画面开始播放");
   }
   function renderPRoutes(cur) {
     var box = $("pRoutes");
