@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="86">
+<meta name="appver" content="87">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -1304,8 +1304,121 @@
     var n = votesOf(row), C = 800, prior = 6.6;
     return (n * s + C * prior) / (n + C);
   }
+  // ---- 全网真实热度（腾讯/爱奇艺/优酷/芒果/B站官方榜单，服务端聚合为 heat.json） ----
+  var HEAT_URLS = ["heat.json",
+    "https://raw.githubusercontent.com/iwjq520/yingshi-ku/main/heat.json",
+    "https://cdn.jsdelivr.net/gh/iwjq520/yingshi-ku@main/heat.json"];
+  var HEAT = getJ("m_heat", null), HEAT_IDX = null;
+  var RHEAT_NAME = { tencent: "腾讯", iqiyi: "爱奇艺", youku: "优酷", mgtv: "芒果", bilibili: "B站" };
+  var REAL_TABS = [["unified", "综合"], ["tencent", "腾讯"], ["iqiyi", "爱奇艺"], ["youku", "优酷"], ["mgtv", "芒果"], ["bilibili", "B站"]];
+  function rheatNorm(s) {
+    return String(s || "").toLowerCase()
+      .replace(/[\s：:·，,。.\-—_()（）\[\]【】!！?？'’“”"]+/g, "")
+      .replace(/(第[一二三四五六七八九十0-9]+季|第[一二三四五六七八九十0-9]+部|\s*\d{4})$/, "");
+  }
+  function rheatBuild() {
+    HEAT_IDX = null;
+    if (!HEAT || !HEAT.real) return;
+    var idx = {};
+    Object.keys(HEAT.real).forEach(function (k) { idx[k] = HEAT.real[k]; });
+    HEAT_IDX = idx;
+  }
+  function rheatOf(name) { return HEAT_IDX ? (HEAT_IDX[rheatNorm(name)] || null) : null; }
+  function rheatTag(name) {
+    var r = rheatOf(name);
+    if (!r) return "";
+    var best = null;
+    Object.keys(r.p || {}).forEach(function (k) {
+      var v = Number(r.p[k]) || 0;
+      if (v && (!best || v > best.v)) best = { k: k, v: v };
+    });
+    if (!best) return "真实热度" + Math.round(r.u || 0);
+    return (RHEAT_NAME[best.k] || best.k) + "热" + fmtHot(best.v);
+  }
+  function appSearchTitle(t) {
+    switchView("search");
+    var q = $("q");
+    if (q) q.value = t;
+    doSearch();
+  }
+  function renderRealBoard() {
+    var block = $("homeBlocks");
+    if (!block || !HEAT) return;
+    var w = document.createElement("div"), h = document.createElement("div");
+    h.className = "bsec";
+    h.innerHTML = '全网热度榜 <small>五平台官方数据 · ' + String(HEAT.updated || "").slice(5, 16) + ' 更新</small>';
+    w.appendChild(h);
+    block.appendChild(w);
+    var bar = document.createElement("div"); bar.className = "realTabs";
+    var list = document.createElement("div"); list.className = "realList";
+    function draw(key) {
+      list.innerHTML = "";
+      var rows = key === "unified" ? (HEAT.unified || []).slice(0, 12)
+        : ((HEAT.platforms || {})[key] || []).slice(0, 12);
+      rows.forEach(function (r, i) {
+        var d = document.createElement("div");
+        d.className = "realItem";
+        var badge = key === "unified" ? Math.round(r.unified) + "分"
+          : (r.heat ? fmtHot(r.heat) : (r.rank ? "榜" + r.rank : "在榜"));
+        d.innerHTML = '<span class="tn">' + (i + 1) + '</span><span class="rt"></span><span class="rh"></span>';
+        d.querySelector(".rt").textContent = r.title;
+        d.querySelector(".rh").textContent = badge;
+        d.onclick = function () { appSearchTitle(r.title); };
+        list.appendChild(d);
+      });
+    }
+    REAL_TABS.forEach(function (tb, ti) {
+      var b = document.createElement("button");
+      b.textContent = tb[1];
+      if (!ti) b.className = "on";
+      b.onclick = function () {
+        Array.prototype.forEach.call(bar.querySelectorAll("button"), function (x) { x.className = ""; });
+        b.className = "on";
+        draw(tb[0]);
+      };
+      bar.appendChild(b);
+    });
+    w.appendChild(bar);
+    w.appendChild(list);
+    draw("unified");
+  }
+  function fetchHeat(force) {
+    if (!force && HEAT && HEAT.real) { rheatBuild(); return; }
+    var i = 0;
+    function nxt() {
+      if (i >= HEAT_URLS.length) return;
+      fetch(HEAT_URLS[i++], { cache: "no-cache" }).then(function (r) {
+        return r.ok ? r.json() : null;
+      }).then(function (j) {
+        if (j && j.real && j.platforms) {
+          HEAT = j; setJ("m_heat", j); rheatBuild();
+          if (state.view === "home") renderHome();
+        } else nxt();
+      }).catch(nxt);
+    }
+    nxt();
+  }
+  (function () {
+    var st = document.createElement("style");
+    st.textContent = ".realTabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px}"
+      + ".realTabs button{flex:0 0 auto;padding:6px 12px;border-radius:999px;border:1px solid #2a2f38;background:#161920;color:#9aa3ad;font-size:12px}"
+      + ".realTabs button.on{border-color:#ff8f1f;color:#ff8f1f;background:rgba(255,143,31,.08)}"
+      + ".realList{display:flex;flex-direction:column;gap:2px}"
+      + ".realItem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;background:#141821;font-size:13px;cursor:pointer}"
+      + ".realItem:active{background:#1c2230}"
+      + ".realItem .tn{width:18px;color:#7d8590;font-weight:700;font-style:italic}"
+      + ".realItem:nth-child(1) .tn{color:#ff8f1f}.realItem:nth-child(2) .tn{color:#c9a227}.realItem:nth-child(3) .tn{color:#b06f2d}"
+      + ".realItem .rt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#e8ecf1}"
+      + ".realItem .rh{flex:0 0 auto;color:#ff8f1f;font-size:12px}";
+    document.head.appendChild(st);
+  })();
+  fetchHeat(false);
   // 综合热度：日/周/月/总加权 + 更新时间衰减（半衰期 21 天，最低 0.55）
+  // v87 起：标题命中五平台真实热度数据时，直接进入真实热度区（1e12+综合分），
+  // 未命中的长尾内容继续用原算法保底——所有按 hotScore 的排序即"真实优先"。
   function hotScore(row) {
+    var _rh = rheatOf(row.vod_name);
+    if (_rh) return 1e12 + (_rh.u || 0);
     var d = num(row.vod_hits_day), w = num(row.vod_hits_week), m = num(row.vod_hits_month), a = num(row.vod_hits);
     var base = d * 3 + w * 1.2 + m * 0.45 + a * 0.12;
     var days = 60;
@@ -1555,8 +1668,12 @@
     rows.forEach(function (row) {
       var c = pcard(row, function () { openDetail(row); });
       if (showHot) {
-        var hv = hitsOf(row);
-        if (hv > 0) c.querySelector(".pr").textContent += " · 热" + fmtHot(hv);
+        var _rt = rheatTag(row.vod_name);
+        if (_rt) c.querySelector(".pr").textContent += " · " + _rt;
+        else {
+          var hv = hitsOf(row);
+          if (hv > 0) c.querySelector(".pr").textContent += " · 热" + fmtHot(hv);
+        }
       }
       g.appendChild(c);
     });
@@ -1581,6 +1698,8 @@
       if (row.vod_pic) { im.src = row.vod_pic; im.onload = function () { im.className = "on"; }; if (im.complete) im.className = "on"; }
       d.querySelector(".pn").textContent = row.vod_name;
       d.querySelector(".pr").textContent = [row.type_name, row.vod_year].filter(Boolean).join(" · ");
+      var _rt10 = rheatTag(row.vod_name);
+      if (_rt10) d.querySelector(".pr").textContent += " · " + _rt10;
       var open = function () { openDetail(row); };
       d.onclick = open;
       kbActivate(d, open, row.vod_name);
@@ -1707,6 +1826,8 @@
       recs.forEach(function (r) { seen[String(r.vod_id)] = 1; });
       gridIn(section("每日推荐", "按你的口味 · 评分加权"), recs, true);
     }
+    // 3.5 全网真实热度榜（五平台官方数据，非算法估算）
+    renderRealBoard();
     // 4 热播榜(多周期加权热度 + 更新衰减)
     var hot = dedupe(pool.slice()).sort(byHotDesc).slice(0, 12);
     if (hot.length) {
