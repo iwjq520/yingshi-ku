@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="87">
+<meta name="appver" content="88">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -1341,6 +1341,144 @@
     if (q) q.value = t;
     doSearch();
   }
+  function rheatChannelOf(catName) {
+    catName = String(catName || "");
+    if (/片$/.test(catName)) return "电影";
+    if (/动漫$/.test(catName)) return "动漫";
+    if (/综艺$/.test(catName)) return "综艺";
+    if (/剧$/.test(catName)) return "电视剧";
+    return "";
+  }
+  var UPD_TABS = [["mix", "合并"], ["tencent", "腾讯"], ["iqiyi", "爱奇艺"], ["youku", "优酷"], ["mgtv", "芒果"], ["bilibili", "B站"]];
+  function realListDraw(list, rows, badgeFn) {
+    list.innerHTML = "";
+    rows.forEach(function (r, i) {
+      var d = document.createElement("div");
+      d.className = "realItem";
+      d.innerHTML = '<span class="tn">' + (i + 1) + '</span><span class="rt"></span><span class="rh"></span>';
+      d.querySelector(".rt").textContent = r.title;
+      d.querySelector(".rh").textContent = badgeFn ? String(badgeFn(r) || "") : "";
+      d.onclick = function () { appSearchTitle(r.title); };
+      list.appendChild(d);
+    });
+  }
+  function updRows(key) {
+    var ups = (HEAT && HEAT.updates) || {};
+    if (key !== "mix") return (ups[key] || []).slice(0, 15);
+    var seen = {}, out = [], i = 0;
+    var pools = ["tencent", "iqiyi", "youku", "mgtv", "bilibili"].map(function (k) { return ups[k] || []; });
+    while (out.length < 15) {
+      var pushed = false;
+      for (var pi = 0; pi < pools.length; pi++) {
+        var it = pools[pi][i];
+        if (!it) continue;
+        var k = rheatNorm(it.title);
+        if (!seen[k]) { seen[k] = 1; out.push(it); pushed = true; if (out.length >= 15) break; }
+      }
+      if (!pushed) break;
+      i++;
+    }
+    return out;
+  }
+  function renderUpdateBoard() {
+    var block = $("homeBlocks");
+    if (!block || !HEAT || !HEAT.updates) return;
+    var w = document.createElement("div"), h = document.createElement("div");
+    h.className = "bsec";
+    h.innerHTML = '每日更新 <small>五平台最新上架 · ' + String(HEAT.updated || "").slice(5, 16) + ' 更新</small>';
+    w.appendChild(h);
+    block.appendChild(w);
+    var bar = document.createElement("div"); bar.className = "realTabs";
+    var list = document.createElement("div"); list.className = "realList";
+    UPD_TABS.forEach(function (tb, ti) {
+      var b = document.createElement("button");
+      b.textContent = tb[1];
+      if (!ti) b.className = "on";
+      b.onclick = function () {
+        Array.prototype.forEach.call(bar.querySelectorAll("button"), function (x) { x.className = ""; });
+        b.className = "on";
+        realListDraw(list, updRows(tb[0]), function (r) { return r.ch || ""; });
+      };
+      bar.appendChild(b);
+    });
+    w.appendChild(bar);
+    w.appendChild(list);
+    realListDraw(list, updRows("mix"), function (r) { return r.ch || ""; });
+  }
+  function renderCatReal() {
+    var grid = $("catGrid");
+    if (!grid) return;
+    var old = document.getElementById("catReal");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (!HEAT || !HEAT.channels) return;
+    var catName = "";
+    for (var ci = 0; ci < CATS.length; ci++) { if (CATS[ci].id === state.catId) { catName = CATS[ci].name; break; } }
+    var ch = rheatChannelOf(catName);
+    if (!ch) return;
+    var w = document.createElement("div"); w.id = "catReal";
+    var h = document.createElement("div");
+    h.className = "bsec";
+    h.innerHTML = '平台' + ch + '真实榜 <small>官方数据 · 点击站内搜</small>';
+    w.appendChild(h);
+    var tabs = [["tencent", "腾讯"], ["iqiyi", "爱奇艺"], ["youku", "优酷"], ["mgtv", "芒果"]];
+    var bar = document.createElement("div"); bar.className = "realTabs";
+    var list = document.createElement("div"); list.className = "realList";
+    function drawC(key) {
+      var rows = ((HEAT.channels || {})[ch] || {})[key] || [];
+      realListDraw(list, rows.slice(0, 10), function (r) {
+        return r.heat ? fmtHot(r.heat) : (r.rank ? "榜" + r.rank : (r.type || "在榜"));
+      });
+    }
+    tabs.forEach(function (tb, ti) {
+      var b = document.createElement("button");
+      b.textContent = tb[1];
+      if (!ti) b.className = "on";
+      b.onclick = function () {
+        Array.prototype.forEach.call(bar.querySelectorAll("button"), function (x) { x.className = ""; });
+        b.className = "on";
+        drawC(tb[0]);
+      };
+      bar.appendChild(b);
+    });
+    w.appendChild(bar);
+    w.appendChild(list);
+    grid.parentNode.insertBefore(w, grid);
+    drawC("tencent");
+  }
+  function renderSearchReal() {
+    var grid = $("searchGrid");
+    if (!grid) return;
+    var old = document.getElementById("searchReal");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (!HEAT || !HEAT.real) return;
+    var q = rheatNorm(state.searchQ || lastQuery || "");
+    if (!q) return;
+    var hits = [];
+    Object.keys(HEAT.real).forEach(function (k) {
+      var r = HEAT.real[k];
+      if (k === q || k.indexOf(q) >= 0 || q.indexOf(k) >= 0) {
+        hits.push({ title: r.title, u: r.u || 0,
+          plats: Object.keys(r.p || {}).map(function (x) { return RHEAT_NAME[x] || x; }).join("/") });
+      }
+    });
+    (HEAT.unified || []).forEach(function (u) {
+      if (hits.some(function (x) { return x.title === u.title; })) return;
+      if (rheatNorm(u.title).indexOf(q) >= 0) hits.push({ title: u.title, u: u.unified, plats: "综合榜" });
+    });
+    if (!hits.length) return;
+    hits.sort(function (a, b) { return b.u - a.u; });
+    var w = document.createElement("div"); w.id = "searchReal";
+    var h = document.createElement("div");
+    h.className = "bsec";
+    h.innerHTML = '全网热播相关 <small>五平台真实数据</small>';
+    w.appendChild(h);
+    var list = document.createElement("div"); list.className = "realList";
+    realListDraw(list, hits.slice(0, 8), function (r) {
+      return (r.plats ? r.plats + " " : "") + (r.u ? Math.round(r.u) + "分" : "");
+    });
+    w.appendChild(list);
+    grid.parentNode.insertBefore(w, grid);
+  }
   function renderRealBoard() {
     var block = $("homeBlocks");
     if (!block || !HEAT) return;
@@ -1383,7 +1521,7 @@
     draw("unified");
   }
   function fetchHeat(force) {
-    if (!force && HEAT && HEAT.real) { rheatBuild(); return; }
+    if (!force && HEAT && HEAT.real && HEAT.updates) { rheatBuild(); return; }
     var i = 0;
     function nxt() {
       if (i >= HEAT_URLS.length) return;
@@ -1828,6 +1966,8 @@
     }
     // 3.5 全网真实热度榜（五平台官方数据，非算法估算）
     renderRealBoard();
+    // 3.6 每日更新（五平台最新上架真实流）
+    renderUpdateBoard();
     // 4 热播榜(多周期加权热度 + 更新衰减)
     var hot = dedupe(pool.slice()).sort(byHotDesc).slice(0, 12);
     if (hot.length) {
@@ -2151,6 +2291,7 @@
   }
   function renderCatGrid() {
     var grid = $("catGrid"); grid.innerHTML = "";
+    renderCatReal();
     var catName = "";
     for (var ci = 0; ci < CATS.length; ci++) { if (CATS[ci].id === state.catId) { catName = CATS[ci].name; break; } }
     var rows = dedupe(catPool.filter(function (row) {
@@ -2369,6 +2510,7 @@
     var list = (state.searchPool || []).filter(function (row) { return !isBlocked(row) && matchSearchFilters(row); });
     state.searchList = list;
     paintSearchGrid();
+    renderSearchReal();
     renderSearchSort();
     renderSearchFilters();
     renderSearchMore();
