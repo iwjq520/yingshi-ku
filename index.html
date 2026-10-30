@@ -20,7 +20,7 @@
   } catch (e) {}
 })();
 </script>
-<meta name="appver" content="89">
+<meta name="appver" content="90">
 <title>影视库</title>
 <meta property="og:title" id="ogTitle" content="影视库">
 <meta property="og:description" id="ogDesc" content="聚合影视搜索与播放">
@@ -1065,6 +1065,17 @@
     }, function (e) {
       clearTimeout(tm);
       if (retries > 0) return apiFetch(u, { fresh: opts && opts.fresh, retries: retries - 1 });
+      // 资源站直连全败（2026-10-30 起 bfzy 撤除 ACAO 跨域头）→ 公共 CORS 代理兜底
+      if (u.indexOf("bfzyapi.com") >= 0) {
+        return fetch("https://api.allorigins.win/get?url=" + encodeURIComponent(u))
+          .then(function (r) { if (!r.ok) throw e; return r.json(); })
+          .then(function (j) { return (j && j.contents) ? JSON.parse(j.contents) : {}; })
+          .then(function (d) {
+            apiCache[u] = { d: d, t: Date.now() };
+            pruneApiCache();
+            return d;
+          });
+      }
       throw e;
     }).then(function (d) {
       apiCache[u] = { d: d, t: Date.now() };
@@ -1305,26 +1316,6 @@
     return (n * s + C * prior) / (n + C);
   }
   // ---- 全网真实热度（腾讯/爱奇艺/优酷/芒果/B站官方榜单，服务端聚合为 heat.json） ----
-  // bfzy CORS 兜底（2026-10-30 资源站撤除 ACAO 头）：直连失败自动走 allorigins 代理
-  (function () {
-    var _of = window.fetch ? window.fetch.bind(window) : null;
-    if (!_of) return;
-    window.fetch = function (input, init) {
-      var url = typeof input === "string" ? input : (input && input.url) || "";
-      if (url.indexOf("bfzyapi.com") < 0) return _of(input, init);
-      return _of(input, init).catch(function (e) {
-        return _of("https://api.allorigins.win/get?url=" + encodeURIComponent(url), { cache: "no-cache" })
-          .then(function (r) {
-            if (!r.ok) throw e;
-            return r.json();
-          })
-          .then(function (j) {
-            return new Response(JSON.stringify((j && j.contents) || "{}"),
-              { status: 200, headers: { "Content-Type": "application/json" } });
-          });
-      });
-    };
-  })();
   var HEAT_URLS = ["heat.json",
     "https://raw.githubusercontent.com/iwjq520/yingshi-ku/main/heat.json",
     "https://cdn.jsdelivr.net/gh/iwjq520/yingshi-ku@main/heat.json"];
