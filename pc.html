@@ -614,5 +614,12 @@
 })();
 </script>
 <script>window.addEventListener("pagehide",function(){try{window.name="PAGEHIDE"}catch(e){}});</script>
+<script>
+/* 迁移清理：注销旧影视库 Service Worker 并清空其缓存，确保访问到当前页面 */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }).catch(function () {});
+  if (window.caches && caches.keys) { caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }).catch(function () {}); }
+}
+</script>
 </body>
 </html>
